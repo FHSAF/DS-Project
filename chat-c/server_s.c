@@ -4,13 +4,14 @@
 #include <stdlib.h>
 #include <time.h>
 
-#define PORT "8081"
+#define PORT "1234"
 #define MAX_CONNECTION 10
 #define BUFFER_SIZE 4096
+#define SERVER_IP "192.168.0.101"
 
 struct ClientInfo {
 	int id;
-	int socket;
+	SOCKET socket;
 	void *addr;
 	struct sockaddr_storage address;
 };
@@ -30,6 +31,14 @@ int getRadomId(int min, int max) {
 
 int main()
 {
+	#if defined(_WIN32)
+		WSADATA d;
+		if (WSAStartup(MAKEWORD(2, 2), &d))
+		{
+			fprintf(stderr, "Failed to initia");
+			return (1);
+		}
+	#endif
 	struct addrinfo hints;
 	struct addrinfo *bind_address;
 	SOCKET socket_listen;
@@ -42,7 +51,7 @@ int main()
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_flags = AI_PASSIVE;
 
-	getaddrinfo(0, PORT, &hints, &bind_address);
+	getaddrinfo(SERVER_IP, PORT, &hints, &bind_address);
 
     printf("Creating socket...\n");
 	socket_listen = socket(bind_address->ai_family, bind_address->ai_socktype, bind_address->ai_protocol);
