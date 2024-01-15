@@ -4,10 +4,12 @@
 #include <stdlib.h>
 #include <time.h>
 
-#define PORT "1234"
+#define PORT "6969"
 #define MAX_CONNECTION 10
 #define BUFFER_SIZE 4096
-#define SERVER_IP "192.168.0.101"
+#define SERVER_IP "127.0.0.1"
+
+int handle_new_connection(SOCKET socket_listen, fd_set *master, SOCKET socket_max);
 
 struct ClientInfo {
 	int id;
@@ -119,7 +121,7 @@ int main()
 					printf("New connection from %s\n", address_buffer);
 					//
 					int client_id = getRadomId(10, 1000)*(++client_count);
-        			printf("Client id is (%d).\n", client_id);
+					printf("Client id is (%d).\n", client_id);
 					struct ClientInfo *client_info = (struct ClientInfo *)malloc(sizeof(struct ClientInfo));
 					// printf("Malloced %p \n", client_info);
 					client_info->id = client_id;
@@ -127,10 +129,12 @@ int main()
 					client_info->address = client_address;
 					client_info->addr = client_info;
 					clients[client_count - 1] = *client_info;
-        			send(socket_client, &client_id, sizeof(client_id), 0);
-        			printf("Assigned ID (%d) to (%d)\n", client_id, client_count);
-					//
-				} else {
+					send(socket_client, &client_id, sizeof(client_id), 0);
+					printf("Assigned ID (%d) to (%d)\n", client_id, client_count);
+					//if (handle_new_connection(socket_listen, &master, socket_max))
+				} 
+				else 
+				{
 					char read[4096];
 					int byte_received = recv(i, read, 4096, 0);
 					if (byte_received < 1)
@@ -210,3 +214,41 @@ int main()
 
     return 0;
 }
+/*
+
+int handle_new_connection(SOCKET socket_listen, fd_set *master, SOCKET socket_max)
+{
+	struct sockaddr_storage client_address;
+	socklen_t client_len = sizeof(client_address);
+	SOCKET socket_client = accept(socket_listen, (struct sockaddr*)&client_address, &client_len);
+	if (!ISVALIDSOCKET(socket_client))
+	{
+		fprintf(stderr, "accept() failed. (%d)\n", GETSOCKETERRNO());
+		return (1);
+	}
+
+	FD_SET(socket_client, master);
+	if (socket_client > socket_max)
+	{
+		socket_max = socket_client;
+	}
+
+	char address_buffer[100];
+	getnameinfo((struct sockaddr*)&client_address, client_len, address_buffer, sizeof(address_buffer), 0, 0, NI_NUMERICHOST);
+	printf("New connection from %s\n", address_buffer);
+	//
+	int client_id = getRadomId(10, 1000)*(++client_count);
+	printf("Client id is (%d).\n", client_id);
+	struct ClientInfo *client_info = (struct ClientInfo *)malloc(sizeof(struct ClientInfo));
+	// printf("Malloced %p \n", client_info);
+	client_info->id = client_id;
+	client_info->socket = socket_client;
+	client_info->address = client_address;
+	client_info->addr = client_info;
+	clients[client_count - 1] = *client_info;
+	send(socket_client, &client_id, sizeof(client_id), 0);
+	printf("Assigned ID (%d) to (%d)\n", client_id, client_count);
+
+	return (0);
+}
+*/
