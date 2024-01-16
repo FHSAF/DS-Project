@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -g
+CFLAGS = -g -Wall -Wextra -Werror
 
 all: server_s client_s
 

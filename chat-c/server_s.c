@@ -23,7 +23,7 @@ typedef struct serverInfo {
 
 SOCKET next_server();
 void send_server_info(SOCKET dest, ServerInfo *myInfo);
-SOCKET setup_tcp_socket(struct addrinfo hints, SOCKET socket_listen, struct addrinfo *bind_address);
+SOCKET setup_tcp_socket();
 void assign_client_info(SOCKET socket_client, struct sockaddr_storage client_address);
 SOCKET setup_udp_socket(char * sock_ip, char *sock_port);
 int leader_election();
@@ -70,14 +70,10 @@ int main()
 	#endif
     time_t start_t, end_t;
 	int leader = 1;
-	struct addrinfo hints;
-	struct addrinfo *bind_address;
-    ServerInfo myId;
-	SOCKET socket_listen, next_server_socket;
 	SOCKET socket_max;
 	fd_set master;
 
-    socket_listen = setup_tcp_socket(hints, socket_listen, bind_address);
+    SOCKET socket_listen = setup_tcp_socket();
     if (socket_listen == -1)
         return(1);
 
@@ -89,7 +85,7 @@ int main()
 	FD_SET(socket_listen, &master);
 	socket_max = socket_listen;
 
-	SOCKET udp_socket = setup_udp_socket(SERVER_IP, BROADCAST_PORT);
+	SOCKET udp_socket = setup_udp_socket(NULL, BROADCAST_PORT);
 	if (udp_socket!=-1)
 	{
 		FD_SET(udp_socket, &master);
@@ -97,7 +93,7 @@ int main()
 	}
 	// connecto to next server
     printf("connecting to next server...\n");
-    next_server_socket = next_server();
+    SOCKET next_server_socket = next_server();
 	if (next_server_socket!=-1)
 	{
 		FD_SET(next_server_socket, &master);
@@ -331,9 +327,12 @@ void send_server_info(SOCKET dest, ServerInfo *myInfo)
 }
 
 
-SOCKET setup_tcp_socket(struct addrinfo hints, SOCKET socket_listen, struct addrinfo *bind_address)
+SOCKET setup_tcp_socket()
 {
 	printf("[TCP] Configuring local address...\n");
+	SOCKET socket_listen;
+	struct addrinfo *bind_address;
+	struct addrinfo hints;
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_family = AF_INET;
 	hints.ai_socktype = SOCK_STREAM;
@@ -377,7 +376,7 @@ SOCKET setup_udp_socket(char * sock_ip, char *sock_port)
 	hints.ai_flags = AI_PASSIVE;
 	struct addrinfo *udp_bind_address;
     
-    getaddrinfo(NULL, sock_port, &hints, &udp_bind_address);
+    getaddrinfo(sock_ip, sock_port, &hints, &udp_bind_address);
 
     printf("[UDP] Creating socket...\n");
     SOCKET socket_listen;
@@ -413,7 +412,7 @@ SOCKET setup_udp_socket(char * sock_ip, char *sock_port)
 }
 void udp_multicast(char *msg, struct serverInfo *head, SOCKET udp_sockfd)
 {
-	printf("[udp_multicast] multicasting...\n");
+	printf("[udp_multicast] multicasting (%d)...\n", head->ID);
 	udp_broadcast(msg, udp_sockfd);
 }
 
@@ -577,3 +576,5 @@ void free_server_storage(struct serverInfo *head)
 		current = nextServer;
 	}
 }
+
+// end
