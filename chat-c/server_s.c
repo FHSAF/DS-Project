@@ -102,7 +102,7 @@ int main()
 	{
 		FD_SET(next_server_socket, &master);
 		socket_max = next_server_socket;
-       send_server_info(next_server_socket, connected_peers);
+       	send_server_info(next_server_socket, connected_peers);
 	}
 
     printf("Waiting for connections...\n");
@@ -131,6 +131,7 @@ int main()
 				udp_multicast(msg1, connected_peers, udp_socket);
 			else
             	udp_multicast(msg2, connected_peers, udp_socket);
+		
             printf("%d \n", (int)difftime(end_t, start_t));
             time(&start_t);
         }
@@ -162,6 +163,7 @@ int main()
 					assign_client_info(socket_client, client_address);
 				} else if (i == udp_socket)
 				{
+					printf("[main] read on udpsocket...\n");
 					handle_udp_recieve(connected_peers, leader, i);
 				}
                 else 
@@ -375,7 +377,7 @@ SOCKET setup_udp_socket(char * sock_ip, char *sock_port)
 	hints.ai_flags = AI_PASSIVE;
 	struct addrinfo *udp_bind_address;
     
-    getaddrinfo(sock_ip, sock_port, &hints, &udp_bind_address);
+    getaddrinfo(NULL, sock_port, &hints, &udp_bind_address);
 
     printf("[UDP] Creating socket...\n");
     SOCKET socket_listen;
@@ -425,21 +427,20 @@ void udp_broadcast(char *msg, SOCKET udp_sockfd)
 	struct addrinfo *rcv_addr;
     
 	// SOCKET brd_socket = setup_udp_socket(SERVER_IP, BROADCAST_PORT);
-	if (udp_sockfd != -1)
-	{
-		getaddrinfo(BROADCAST_ADDRESS, BROADCAST_PORT, &hints, &rcv_addr);
-		char address_buffer[100];
-		char service_buffer[100];
-		getnameinfo(rcv_addr->ai_addr,
-				rcv_addr->ai_addrlen,
-				address_buffer, sizeof(address_buffer),
-				service_buffer, sizeof(service_buffer),
-				NI_NUMERICHOST | NI_NUMERICSERV);
-		printf("[udp_broadcast] address: %s %s\n", address_buffer, service_buffer);
-		if (sendto(udp_sockfd, msg, strlen(msg), 0, rcv_addr->ai_addr, rcv_addr->ai_addrlen) == -1)
-			fprintf(stderr, "[udp_broadcast] sendto() failed. (%d)\n", GETSOCKETERRNO());
-		free(rcv_addr);
-	}
+
+	getaddrinfo(BROADCAST_ADDRESS, BROADCAST_PORT, &hints, &rcv_addr);
+	char address_buffer[100];
+	char service_buffer[100];
+	getnameinfo(rcv_addr->ai_addr,
+			rcv_addr->ai_addrlen,
+			address_buffer, sizeof(address_buffer),
+			service_buffer, sizeof(service_buffer),
+			NI_NUMERICHOST | NI_NUMERICSERV);
+	printf("[udp_broadcast] address: %s %s\n", address_buffer, service_buffer);
+	if (sendto(udp_sockfd, msg, strlen(msg), 0, rcv_addr->ai_addr, rcv_addr->ai_addrlen) == -1)
+		fprintf(stderr, "[udp_broadcast] sendto() failed. (%d)\n", GETSOCKETERRNO());
+	free(rcv_addr);
+
 }
 
 void handle_udp_recieve(ServerInfo *connected_peers, int leader, SOCKET udp_socket)

@@ -1,0 +1,24 @@
+---
+triple:          'arm64-apple-darwin'
+binary-path:     server_s
+relocations:
+  - { offsetInCU: 0x26, offset: 0x26, size: 0x8, addend: 0x0, symName: _getRadomId, symObjAddr: 0x0, symBinAddr: 0x100001824, symSize: 0x5C }
+  - { offsetInCU: 0x3F, offset: 0x3F, size: 0x8, addend: 0x0, symName: _client_count, symObjAddr: 0x5AFC, symBinAddr: 0x100008000, symSize: 0x0 }
+  - { offsetInCU: 0x75, offset: 0x75, size: 0x8, addend: 0x0, symName: _clients, symBinAddr: 0x100008008, symSize: 0x0 }
+  - { offsetInCU: 0x1FF, offset: 0x1FF, size: 0x8, addend: 0x0, symName: _getRadomId, symObjAddr: 0x0, symBinAddr: 0x100001824, symSize: 0x5C }
+  - { offsetInCU: 0x2FC, offset: 0x2FC, size: 0x8, addend: 0x0, symName: _main, symObjAddr: 0x5C, symBinAddr: 0x100001880, symSize: 0xE1C }
+  - { offsetInCU: 0x786, offset: 0x786, size: 0x8, addend: 0x0, symName: _setup_tcp_socket, symObjAddr: 0xE78, symBinAddr: 0x10000269C, symSize: 0x1FC }
+  - { offsetInCU: 0x7CF, offset: 0x7CF, size: 0x8, addend: 0x0, symName: _append_server, symObjAddr: 0x1074, symBinAddr: 0x100002898, symSize: 0xCC }
+  - { offsetInCU: 0x85D, offset: 0x85D, size: 0x8, addend: 0x0, symName: _setup_udp_socket, symObjAddr: 0x1140, symBinAddr: 0x100002964, symSize: 0x214 }
+  - { offsetInCU: 0x8D4, offset: 0x8D4, size: 0x8, addend: 0x0, symName: _send_server_info, symObjAddr: 0x1354, symBinAddr: 0x100002B78, symSize: 0x124 }
+  - { offsetInCU: 0x929, offset: 0x929, size: 0x8, addend: 0x0, symName: _udp_multicast, symObjAddr: 0x1478, symBinAddr: 0x100002C9C, symSize: 0x3C }
+  - { offsetInCU: 0x96D, offset: 0x96D, size: 0x8, addend: 0x0, symName: _assign_client_info, symObjAddr: 0x14B4, symBinAddr: 0x100002CD8, symSize: 0x120 }
+  - { offsetInCU: 0x9C1, offset: 0x9C1, size: 0x8, addend: 0x0, symName: _handle_udp_recieve, symObjAddr: 0x15D4, symBinAddr: 0x100002DF8, symSize: 0x24C }
+  - { offsetInCU: 0xA68, offset: 0xA68, size: 0x8, addend: 0x0, symName: _next_server, symObjAddr: 0x1820, symBinAddr: 0x100003044, symSize: 0x26C }
+  - { offsetInCU: 0xAD3, offset: 0xAD3, size: 0x8, addend: 0x0, symName: _udp_broadcast, symObjAddr: 0x1A8C, symBinAddr: 0x1000032B0, symSize: 0x184 }
+  - { offsetInCU: 0xB4A, offset: 0xB4A, size: 0x8, addend: 0x0, symName: _delete_server, symObjAddr: 0x1C10, symBinAddr: 0x100003434, symSize: 0xB8 }
+  - { offsetInCU: 0xBA1, offset: 0xBA1, size: 0x8, addend: 0x0, symName: _server_info_exist, symObjAddr: 0x1CC8, symBinAddr: 0x1000034EC, symSize: 0xB8 }
+  - { offsetInCU: 0xBF8, offset: 0xBF8, size: 0x8, addend: 0x0, symName: _create_server, symObjAddr: 0x1D80, symBinAddr: 0x1000035A4, symSize: 0x98 }
+  - { offsetInCU: 0xC5E, offset: 0xC5E, size: 0x8, addend: 0x0, symName: _display_server, symObjAddr: 0x1E18, symBinAddr: 0x10000363C, symSize: 0xB0 }
+  - { offsetInCU: 0xC93, offset: 0xC93, size: 0x8, addend: 0x0, symName: _free_server_storage, symObjAddr: 0x1EC8, symBinAddr: 0x1000036EC, symSize: 0x5C }
+...
