@@ -7,11 +7,12 @@
 #define PORT "4041"
 #define MAX_CONNECTION 10
 #define BUFFER_SIZE 4096
-#define SERVER_IP "192.168.0.101"
+#define SERVER_IP "192.168.0.100"
 #define NEXT_SERVER_IP "127.0.0.1"
 #define NEXT_SERVER_PORT "6970"
 #define BROADCAST_ADDRESS "192.168.0.255"
 #define BROADCAST_PORT "3938"
+#define MULTICAST_IP "239.1.1.1"
 
 typedef struct serverInfo {
     int ID;
@@ -468,8 +469,17 @@ void handle_udp_recieve(ServerInfo *connected_peers, int leader, SOCKET udp_sock
 			}
 			else
 			{
-				printf("[Leader UDP] Received: (%s) (%d) bytes: %.*s\n", address_buffer, bytes_received, bytes_received, read);
-				server_info_exist(address_buffer, atoi(service_buffer), connected_peers);
+				int ID, leader, mPORT;
+				char multicastIP[16];
+
+				if (sscanf(read, "%d:%15[^:]:%d:%d", ID, multicastIP, mPORT, leader) == 4)
+				{
+					printf("[Leader UDP] Received: (%s) (%d) bytes: %.*s\n", address_buffer, bytes_received, bytes_received, read);
+					join_multicast(multicastIP, mPORT);
+				} else {
+					printf("[Leader UDP] Received: (%s) (%d) bytes: %.*s\n", address_buffer, bytes_received, bytes_received, read);
+					server_info_exist(address_buffer, atoi(service_buffer), connected_peers);
+				}
 			}
 			
 		} else {
@@ -498,7 +508,7 @@ int server_info_exist(char *ip_addr, int port, struct serverInfo *head)
 			current = current->next;
 	}
 	append_server(&head, getRadomId(1000, 1000000), ip_addr, port, 0);
-	return (1);
+	return (0);
 }
 
 struct serverInfo * create_server(int id, void *address, int port, int leader)
@@ -577,4 +587,68 @@ void free_server_storage(struct serverInfo *head)
 	}
 }
 
-// end
+SOCKET join_multicast(char *multicast_ip, int mPORT)
+{
+    struct addrinfo hints, *bind_addr;
+    SOCKET mc_socket;
+    char port_str[6]; // Buffer for port string
+
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_DGRAM;
+    hints.ai_flags = AI_PASSIVE;
+
+    sprintf(port_str, "%d", mPORT); // Convert port number to string
+
+    if (getaddrinfo(multicast_ip, port_str, &hints, &bind_addr))
+    {
+        fprintf(stderr, "[join_multicast] getaddrinfo() failed. (%d)\n", GETSOCKETERRNO());
+        return (-1);
+    }
+    if ((mc_socket = socket(bind_addr->ai_family, bind_addr->ai_socktype, bind_addr->ai_protocol)) == -1){
+        fprintf(stderr, "[join_multicast] socket() failed. (%d)\n", GETSOCKETERRNO());
+        return (-1);
+    }
+
+    if (bind(mc_socket, bind_addr->ai_addr, bind_addr->ai_addrlen) == -1){
+        fprintf(stderr, "[join_multicast] bind() failed. (%d)\n", GETSOCKETERRNO());
+        return (-1);
+    }
+    struct ip_mreq mreq;
+    mreq.imr_multiaddr.s_addr = ((struct sockaddr_in*)bind_addr->ai_addr)->sin_addr.s_addr;
+    mreq.imr_interface.s_addr = htonl(INADDR_ANY);
+    if (setsockopt(mc_socket, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) < 0)
+    {
+        fprintf(stderr, "setsockopt() failed. (%d)\n", GETSOCKETERRNO());
+        return (-1);
+    }
+
+    freeaddrinfo(bind_addr); // Free the linked-list
+
+    return (mc_socket);
+}
+
+int do_multicast(SOCKET mc_socket, char *multicast_ip, struct serverInfo *head) {
+    struct addrinfo hints, *res;
+    int status;
+
+    memset(&hints, 0, sizeof hints);
+    hints.ai_family = AF_INET; 
+    hints.ai_socktype = SOCK_DGRAM; 
+	hints.ai_flags = AI_PASSIVE;
+
+    if ((status = getaddrinfo(multicast_ip, PORT, &hints, &res)) != 0) {
+        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(status));
+        return 1;
+    }
+
+    char message[32];
+	sprintf(message, "%d:%s:%d", head->ID, head->addr, head->leader);
+    if (sendto(mc_socket, message, strlen(message)+1, 0, res->ai_addr, res->ai_addrlen) == -1) {
+        perror("sendto");
+        return 1;
+    }
+
+    freeaddrinfo(res); // free the linked list
+    return 0;
+}
