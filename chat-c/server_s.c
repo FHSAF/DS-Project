@@ -190,7 +190,7 @@ int main()
 					char address_buffer[100];
 					getnameinfo((struct sockaddr*)&client_address, client_len, address_buffer, sizeof(address_buffer), 0, 0, NI_NUMERICHOST);
 					printf("New connection from %s\n", address_buffer);
-					assign_client_info(socket_client, client_address, 1);
+					assign_client_info(socket_client, client_address, 0);
 				} else if (i == mc_socket) {
 					SOCKET peer_socket = handle_mcast_receive(mc_socket, connected_peers);
 					if (ISVALIDSOCKET(peer_socket)){

@@ -60,8 +60,11 @@ int main(int argc, char *argv[]) {
 
     int client_id;
     freeaddrinfo(peer_address);
-
+    #if defined(_WIN32)
+        if (recv(socket_peer, (char*)&client_id, sizeof(client_id), 0) < 1)
+    #else
     if (recv(socket_peer, &client_id, sizeof(client_id), 0) < 1)
+    #endif
     {
         printf("Receing ID failed.\n");
         CLOSESOCKET(socket_peer);
