@@ -610,7 +610,11 @@ SOCKET join_multicast(char *multicast_ip, char * mPORT)
     struct ip_mreq mreq;
     mreq.imr_multiaddr.s_addr = inet_addr(multicast_ip);
     mreq.imr_interface.s_addr = htonl(INADDR_ANY);
+	#if defined(_WIN32)
+		if (setsockopt(mc_socket, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char*)&mreq, sizeof(mreq)) < 0)	
+	#else
     if (setsockopt(mc_socket, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) < 0)
+	#endif
     {
         fprintf(stderr, "[join_multicast] setsockopt() failed. (%d)\n", GETSOCKETERRNO());
         return (-1);
