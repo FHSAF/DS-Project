@@ -38,7 +38,7 @@ SOCKET service_discovery(SOCKET *mc_socket, SOCKET tcp_socket, struct serverInfo
 SOCKET handle_mcast_receive(SOCKET mc_socket, struct serverInfo * connected_peers);
 SOCKET peer_mcast_receive(struct serverInfo * connected_peers, char *buf, struct sockaddr_in sender_addr);
 SOCKET setup_tcp_client(char *address, char *port);
-
+void handle_disconnection(struct serverInfo * head, SOCKET i, SOCKET udp_socket, SOCKET mc_socket, SOCKET ltcp_socket);
 
 // Data structure of servers to keep
 int server_info_exist(int id, struct serverInfo *head);
@@ -97,13 +97,13 @@ int main()
 	FD_SET(socket_listen, &master);
 	socket_max = socket_listen;
 
-	SOCKET udp_socket = setup_udp_socket(NULL, BROADCAST_PORT);
-	if (udp_socket!=-1)
-	{
-		FD_SET(udp_socket, &master);
-		if (udp_socket > socket_max)
-			socket_max = udp_socket;
-	}
+	SOCKET udp_socket = -100; //setup_udp_socket(NULL, BROADCAST_PORT);
+	// if (udp_socket!=-1)
+	// {
+	// 	FD_SET(udp_socket, &master);
+	// 	if (udp_socket > socket_max)
+	// 		socket_max = udp_socket;
+	// }
 
 	// mc_socket the socket receiving multicast messages
 	SOCKET mc_socket = join_multicast(MULTICAST_IP, MULTICAST_PORT);
@@ -118,6 +118,7 @@ int main()
 		if (ltcp_socket > socket_max)
 			socket_max = ltcp_socket;
 		connected_peers->leader = 0;
+		CLOSESOCKET(ltcp_socket);
 	} else {
 		printf("[main] I am the leader.\n");
 	}
@@ -146,7 +147,7 @@ int main()
         time(&end_t);
 		char msg1[12];
 		sprintf(msg1, "%d", connected_peers->ID);
-        if ((int)difftime(end_t, start_t) == 5)
+        if ((int)difftime(end_t, start_t) == 10)
         {
 			FD_CLR(mc_socket, &master);
 			if (connected_peers->leader == 1)
@@ -185,45 +186,29 @@ int main()
 					getnameinfo((struct sockaddr*)&client_address, client_len, address_buffer, sizeof(address_buffer), 0, 0, NI_NUMERICHOST);
 					printf("New connection from %s\n", address_buffer);
 					assign_client_info(socket_client, client_address, 1);
-				} else if (i == udp_socket) {
-					printf("[main] read on udpsocket...\n");
-					handle_udp_recieve(connected_peers, leader, i);
 				} else if (i == mc_socket) {
-					printf("[main] read on mcsocket...\n");
-					handle_mcast_receive(mc_socket, connected_peers);
-				} else if (i == ltcp_socket) {
-					printf("[main] read on ltcpsocket...\n");
-					handle_udp_recieve(connected_peers, leader, i);
+					SOCKET peer_socket = handle_mcast_receive(mc_socket, connected_peers);
+					if (peer_socket > 0)
+						printf("[main] The peer socket (%d)...\n", peer_socket);
 				} else {
 					char read[4096];
 					int byte_received = recv(i, read, 4096, 0);
 					if (byte_received < 1)
 					{
-						//
-						for (int ci = 0; ci <= client_count; ++ci)
-						{
-							if (clients[ci].socket == i)
-							{
-								printf("Client with (%d) disconnected.\n", clients[ci].id);
-								free(clients[ci].addr);
-								// printf("freed %p \n", clients[ci].addr);
-								for (int cj = ci; cj < client_count - 1; ++cj)
-								{
-									clients[cj] = clients[cj + 1];
-								}
-								client_count--;
-								break;
-							}
-						}
-						//
+						handle_disconnection(connected_peers, i, udp_socket, mc_socket, ltcp_socket);
 						FD_CLR(i, &master);
 						CLOSESOCKET(i);
 						continue;
 					}
-					
+					if (i == udp_socket)
+					{
+						printf("[main] read on udpsocket...\n");
+						continue;
+					}
 					int dest_id;
 					char message[4096];
 					read[byte_received] = '\0';
+				
 					if (sscanf(read, "%d %[^\n]", &dest_id, message) == 2)
 					{
 						printf("message (%s) (%lu), (%d)\n", read, sizeof(read), byte_received);
@@ -265,6 +250,7 @@ int main()
 	printf("Closing listening socket...\n");
     CLOSESOCKET(socket_listen);
 	CLOSESOCKET(udp_socket);
+	CLOSESOCKET(mc_socket);
     free(connected_peers);
 	free_server_storage(connected_peers);
 
@@ -793,21 +779,21 @@ SOCKET handle_mcast_receive(SOCKET mc_socket, struct serverInfo * connected_peer
     int received_id;
 	if (connected_peers->leader == 1)
 	{
-		SOCKET ctcp_socket = peer_mcast_receive(connected_peers, buf, sender_addr);
-		if (ctcp_socket == -1)
+		SOCKET peer_socket = peer_mcast_receive(connected_peers, buf, sender_addr);
+		if (peer_socket == -1)
 		{
 			fprintf(stderr, "[handle_mcast_receive] peer_mcast_receive() failed. (%d)\n", GETSOCKETERRNO());
 			return (-1);}
-		return (ctcp_socket);
+		return (peer_socket);
 	} else if (sscanf(buf, "%d", &received_id) == 1) {
         int leaderId = connected_peers->next->ID; // Get the next peer
 		if (received_id == leaderId) {
 			printf("[handle_mcast_receive] Leader <Ok> ID: %d\n", received_id);
-			return (1);
+			return (0);
 		} else if (connected_peers->next->next != NULL) {
 			if (connected_peers->next->next->ID == received_id) {
 				printf("[handle_mcast_receive] Successor <Ok> ID: %d\n", received_id);
-				return (1);
+				return (0);
 			}
 		}
     }
@@ -838,17 +824,17 @@ SOCKET peer_mcast_receive(struct serverInfo * connected_peers, char *buf, struct
 			return (-1);
 		}
 		append_server(&connected_peers, new_peer_id, (void *)inet_ntoa(sender_addr.sin_addr), new_peer_port, 0, ctcp_socket);
-        return ctcp_socket;
+        return (ctcp_socket);
     } else if (sscanf(buf, "%d", &new_peer_id) == 1) {
 		if (does_id_exist(new_peer_id, connected_peers) != 0)
 			printf("[peer_mcast_receive] peer ID (%d) <Ok>.\n", new_peer_id);
 		else
-			printf("[peer_mcast_receive] peer ID (%d) <Not Ok>.\n", new_peer_id);
+			printf("[peer_mcast_receive] ID (%d) Not known.\n", new_peer_id);
 
 	} else {
-		printf("[peer_mcast_receive] Received: (%lu) bytes: %.*s\n", strlen(buf), (int)strlen(buf), buf);
+		printf("[peer_mcast_receive] Unknow message fomrat: (%lu) bytes: %.*s\n", strlen(buf), (int)strlen(buf), buf);
 	}
-   return (-1);
+   return (1);
 }
 
 SOCKET setup_tcp_client(char *address, char *port)
@@ -904,4 +890,33 @@ int does_id_exist(int id, struct serverInfo *head) {
         current = current->next;
     }
     return (0);
+}
+
+void handle_disconnection(struct serverInfo * head, SOCKET i, SOCKET udp_socket, SOCKET mc_socket, SOCKET ltcp_socket)
+{
+	if (i == udp_socket) {
+		printf("[handle_disconnection] udp_client disconnect...\n");
+	} else if (i == mc_socket) {
+		printf("[handle_disconnection] mc_client disconnect...\n");
+	} else if (i == ltcp_socket) {
+		printf("[handle_disconnection] leader disconnected...\n");
+		printf("[handle_disconnection] Leader election required...\n");
+		delete_server(head, i);
+	} else {
+		for (int ci = 0; ci <= client_count; ++ci)
+		{
+			if (clients[ci].socket == i)
+			{
+				printf("Client with (%d) disconnected.\n", clients[ci].id);
+				free(clients[ci].addr);
+				// printf("freed %p \n", clients[ci].addr);
+				for (int cj = ci; cj < client_count - 1; ++cj)
+				{
+					clients[cj] = clients[cj + 1];
+				}
+				client_count--;
+				break;
+			}
+		}
+	}
 }
