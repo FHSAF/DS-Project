@@ -118,7 +118,6 @@ int main()
 		if (ltcp_socket > socket_max)
 			socket_max = ltcp_socket;
 		connected_peers->leader = 0;
-		CLOSESOCKET(ltcp_socket);
 	} else {
 		printf("[main] I am the leader.\n");
 	}
@@ -537,12 +536,13 @@ int delete_server(struct serverInfo *head, SOCKET tcp_socket)
 			temp = current->next;
 			current->next = current->next->next;
 			free(temp);
+			display_server(head);
 			return (1);
 		}
 		else
 			current = current->next;
 	}
-
+	display_server(head);
 	return (0);
 }
 
@@ -669,12 +669,20 @@ SOCKET service_discovery(SOCKET *mc_socket, SOCKET tcp_socket, struct serverInfo
 	SOCKET socket_client;
 	char address_buffer[100];
 	char service_buffer[100];
-
+	time_t start_t, end_t;
+	time(&start_t);
+	printf("[service_discovery] broadcasting ID (%s), attempt...\n", msg);
+	if (do_multicast(mc_socket, MULTICAST_IP, msg) == -1)
+		return (-1);
     for (int attempt = 0; attempt < 3; ++attempt)
     {
-        printf("[service_discovery] broadcasting ID (%s), attempt...\n", msg);
-        if (do_multicast(mc_socket, MULTICAST_IP, msg) == -1)
-			return (-1);
+		time(&end_t);
+		if ((int)difftime(end_t, start_t) == 3){
+			printf("[service_discovery] broadcasting ID (%s), attempt...\n", msg);
+			if (do_multicast(mc_socket, MULTICAST_IP, msg) == -1)
+				return (-1);
+			time(&start_t);
+		}
 
         fd_set reads;
         reads = master;
@@ -690,7 +698,6 @@ SOCKET service_discovery(SOCKET *mc_socket, SOCKET tcp_socket, struct serverInfo
 			return (-1);
         } else if (activity == 0) {
             printf("[service_discovery] No response received within 3 seconds.\n");
-            
         } else {
             // A response was received. Process it...
             for (int i = 0; i <= socket_max; i++) {
@@ -901,6 +908,7 @@ void handle_disconnection(struct serverInfo * head, SOCKET i, SOCKET udp_socket,
 	} else if (i == ltcp_socket) {
 		printf("[handle_disconnection] leader disconnected...\n");
 		printf("[handle_disconnection] Leader election required...\n");
+		head->leader = 1;
 		delete_server(head, i);
 	} else {
 		for (int ci = 0; ci <= client_count; ++ci)
