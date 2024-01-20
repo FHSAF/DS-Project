@@ -12,7 +12,7 @@
 #define NEXT_SERVER_PORT "6970"
 #define BROADCAST_ADDRESS "192.168.0.255"
 #define BROADCAST_PORT "3938"
-#define MULTICAST_IP "239.10.0.1"
+#define MULTICAST_IP "239.255.255.250"
 #define MULTICAST_PORT "12345"
 
 typedef struct serverInfo {
@@ -41,7 +41,7 @@ SOCKET setup_tcp_client(char *address, char *port);
 
 
 // Data structure of servers to keep
-int server_info_exist(char *ip_addr, int port, struct serverInfo *head);
+int server_info_exist(int id, struct serverInfo *head);
 struct serverInfo * create_server(int id, void *address, int port, int leader, SOCKET tcp_socket);
 int delete_server(struct serverInfo *head, SOCKET tcp_socket);
 void append_server(struct serverInfo **head, int id, void *address, int port, int leader, SOCKET tcp_socket);
@@ -493,16 +493,15 @@ void handle_udp_recieve(ServerInfo *connected_peers, int leader, SOCKET udp_sock
 	}
 }
 
-int server_info_exist(char *ip_addr, int port, struct serverInfo *head)
+int server_info_exist(int id, struct serverInfo *head)
 {
 	struct serverInfo * current = head;
 	while (current!= NULL){
-		if (current->addr == ip_addr)
+		if (current->ID == id)
 			return (1);
 		else
 			current = current->next;
 	}
-	append_server(&head, getRadomId(1000, 1000000), ip_addr, port, 0, -1);
 	return (0);
 }
 
@@ -526,6 +525,8 @@ struct serverInfo * create_server(int id, void *address, int port, int leader, S
 
 void append_server(struct serverInfo **head, int id, void *address, int port, int leader, SOCKET tcp_socket)
 {
+	if (server_info_exist(id, *head))
+		return;
 	struct serverInfo * new_server = create_server(id, address, port, leader, tcp_socket);
 	printf("[append] new sever created...\n");
 	if (*head == NULL)
@@ -743,6 +744,7 @@ SOCKET service_discovery(SOCKET *mc_socket, SOCKET tcp_socket, struct serverInfo
 							if (leader == 1)
 							{
 								printf("[service_discovery] Leader found.\n");
+								head->leader = 0;
 								append_server(&head, ID, (void *)address_buffer, head->port, leader, socket_client);
 								if (strlen(successorIP) >= 8)
 								{
