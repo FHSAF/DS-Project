@@ -624,11 +624,11 @@ SOCKET join_multicast(char *multicast_ip, char * mPORT)
 		fprintf(stderr, "[join_multicast] setsockopt() failed. (%d)\n", GETSOCKETERRNO());
 		return (-1);
 	}
-	unsigned char ttl = 1; // Set the TTL to 1
-	if (setsockopt(mc_socket, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl)) < 0) {
-		perror("setsockopt");
-		// handle error
-	}
+	// unsigned char ttl = 1; // Set the TTL to 1
+	// if (setsockopt(mc_socket, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl)) < 0) {
+	// 	perror("setsockopt");
+	// 	// handle error
+	// }
     freeaddrinfo(bind_addr); // Free the linked-list
 
     return (mc_socket);
