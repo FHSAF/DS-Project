@@ -107,7 +107,6 @@ int main()
 
 	// mc_socket the socket receiving multicast messages
 	SOCKET mc_socket = join_multicast(MULTICAST_IP, MULTICAST_PORT);
-	printf("[main] mc_socket (%d)...\n", mc_socket);
 	
 	if (mc_socket == -1)
 		return (1);
@@ -150,7 +149,6 @@ int main()
         if ((int)difftime(end_t, start_t) == 5)
         {
 			FD_CLR(mc_socket, &master);
-			printf("[main] before multicasting (%d)...\n", mc_socket);
 			if (connected_peers->leader == 1)
 				do_multicast(&mc_socket, MULTICAST_IP, msg1);
 			else
@@ -159,7 +157,6 @@ int main()
 				socket_max = mc_socket;
 			FD_SET(mc_socket, &master);
             printf("%d \n", (int)difftime(end_t, start_t));
-			printf("[main] after multicasting (%d)...\n", mc_socket);
             time(&start_t);
         }
 
@@ -660,7 +657,6 @@ int do_multicast(SOCKET *mc_socket, char *multicast_ip, char * msg) {
 	// }
 	CLOSESOCKET(*mc_socket);
 	*mc_socket = join_multicast(multicast_ip, MULTICAST_PORT);
-	printf("[do_multicast] joined (%d)...\n", *mc_socket);
     freeaddrinfo(res); // free the linked list
     return 0;
 }
