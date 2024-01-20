@@ -406,7 +406,7 @@ SOCKET setup_udp_socket(char * sock_ip, char *sock_port)
 		CLOSESOCKET(socket_listen);
 		return (-1);
 	}
-	free(udp_bind_address);
+	freeaddrinfo(udp_bind_address);
 	return(socket_listen);
 }
 void udp_multicast(char *msg, struct serverInfo *head, SOCKET udp_sockfd)
@@ -620,7 +620,11 @@ SOCKET join_multicast(char *multicast_ip, char * mPORT)
 		fprintf(stderr, "[join_multicast] setsockopt() failed. (%d)\n", GETSOCKETERRNO());
 		return (-1);
 	}
-
+	unsigned char ttl = 1; // Set the TTL to 1
+	if (setsockopt(mc_socket, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl)) < 0) {
+		perror("setsockopt");
+		// handle error
+	}
     freeaddrinfo(bind_addr); // Free the linked-list
 
     return (mc_socket);
@@ -651,7 +655,7 @@ int do_multicast(SOCKET *mc_socket, char *multicast_ip, char * msg) {
 
 	printf("[do_multicast] sent (%s)...\n", msg);
 	// int yes = 1;
-	// if (setsockopt(mc_socket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1) {
+	// if (setsockopt(*mc_socket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1) {
 	// 	fprintf(stderr, "[do_multicast] setsockopt() failed. (%d)\n", GETSOCKETERRNO());
 	// 	// handle error
 	// }
@@ -685,7 +689,7 @@ SOCKET service_discovery(SOCKET *mc_socket, SOCKET tcp_socket, struct serverInfo
         reads = master;
 
         struct timeval timeout;
-        timeout.tv_sec = 3; // Wait for 3 seconds
+        timeout.tv_sec = 1; // Wait for 3 seconds
         timeout.tv_usec = 0;
 
         int activity = select(socket_max + 1, &reads, NULL, NULL, &timeout);
