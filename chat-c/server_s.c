@@ -7,13 +7,19 @@
 #define PORT "4041"
 #define MAX_CONNECTION 10
 #define BUFFER_SIZE 4096
-#define SERVER_IP "192.168.0.100"
+#define SERVER_IP "192.168.0.101"
 #define NEXT_SERVER_IP "127.0.0.1"
 #define NEXT_SERVER_PORT "6970"
 #define BROADCAST_ADDRESS "192.168.0.255"
 #define BROADCAST_PORT "3938"
 #define MULTICAST_IP "239.255.255.250"
 #define MULTICAST_PORT "12345"
+
+#if defined(_WIN32)
+SOCKET error_return = INVALID_SOCKET;
+#else
+SOCKET error_return = -1;
+#endif
 
 typedef struct serverInfo {
     int ID;
@@ -33,7 +39,7 @@ void udp_multicast(char *msg, struct serverInfo *head, SOCKET udp_sockfd);
 void udp_broadcast(char *msg, SOCKET udp_sockfd);
 void handle_udp_recieve(ServerInfo *connected_peers, int leader, SOCKET udp_socket);
 SOCKET join_multicast(char *multicast_ip, char * mPORT);
-int do_multicast(SOCKET *mc_socket, char *multicast_ip, char * msg);
+SOCKET do_multicast(SOCKET *mc_socket, char *multicast_ip, char * msg);
 SOCKET service_discovery(SOCKET *mc_socket, SOCKET tcp_socket, struct serverInfo *head);
 SOCKET handle_mcast_receive(SOCKET mc_socket, struct serverInfo * connected_peers);
 SOCKET peer_mcast_receive(struct serverInfo * connected_peers, char *buf, struct sockaddr_in sender_addr);
@@ -112,7 +118,7 @@ int main()
 		return (1);
 	
 	ltcp_socket = service_discovery(&mc_socket, socket_listen, connected_peers);
-	if (!ISVALIDSOCKET(ltcp_socket)) {
+	if (ISVALIDSOCKET(ltcp_socket)) {
 		
 		FD_SET(ltcp_socket, &master);
 		if (ltcp_socket > socket_max)
@@ -187,12 +193,7 @@ int main()
 					assign_client_info(socket_client, client_address, 1);
 				} else if (i == mc_socket) {
 					SOCKET peer_socket = handle_mcast_receive(mc_socket, connected_peers);
-					#if defined(_WIN32)
-					if (!ISVALIDSOCKET(socket_listen))
-					#else
-					if (peer_socket > 1)
-					#endif
-					{
+					if (ISVALIDSOCKET(peer_socket)){
 						printf("[main] The peer socket (%d)...\n", peer_socket);
 						FD_SET(peer_socket, &master);
 						if (peer_socket > socket_max)
@@ -592,17 +593,17 @@ SOCKET join_multicast(char *multicast_ip, char * mPORT)
     if (getaddrinfo(NULL, mPORT, &hints, &bind_addr))
     {
         fprintf(stderr, "[join_multicast] getaddrinfo() failed. (%d)\n", GETSOCKETERRNO());
-        return (-1);
+        return (error_return);
     }
 	mc_socket = socket(bind_addr->ai_family, bind_addr->ai_socktype, bind_addr->ai_protocol);
     if (!(ISVALIDSOCKET(mc_socket))){
         fprintf(stderr, "[join_multicast] socket() failed. (%d)\n", GETSOCKETERRNO());
-        return (-1);
+        return (error_return);
     }
 
     if (bind(mc_socket, bind_addr->ai_addr, bind_addr->ai_addrlen) == -1){
         fprintf(stderr, "[join_multicast] bind() failed. (%d)\n", GETSOCKETERRNO());
-        return (-1);
+        return (error_return);
     }
     struct ip_mreq mreq;
     mreq.imr_multiaddr.s_addr = inet_addr(multicast_ip);
@@ -614,12 +615,12 @@ SOCKET join_multicast(char *multicast_ip, char * mPORT)
 	#endif
     {
         fprintf(stderr, "[join_multicast] setsockopt() failed. (%d)\n", GETSOCKETERRNO());
-        return (-1);
+        return (error_return);
     }
 	char multicast_loop = 0;
 	if (setsockopt(mc_socket, IPPROTO_IP, IP_MULTICAST_LOOP, &multicast_loop, sizeof(multicast_loop)) < 0) {
 		fprintf(stderr, "[join_multicast] setsockopt() failed. (%d)\n", GETSOCKETERRNO());
-		return (-1);
+		return (error_return);
 	}
 	// unsigned char ttl = 1; // Set the TTL to 1
 	// if (setsockopt(mc_socket, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl)) < 0) {
@@ -631,7 +632,7 @@ SOCKET join_multicast(char *multicast_ip, char * mPORT)
     return (mc_socket);
 }
 
-int do_multicast(SOCKET *mc_socket, char *multicast_ip, char * msg) {
+SOCKET do_multicast(SOCKET *mc_socket, char *multicast_ip, char * msg) {
     struct addrinfo hints, *res;
     int status;
 
@@ -642,7 +643,7 @@ int do_multicast(SOCKET *mc_socket, char *multicast_ip, char * msg) {
 
     if ((status = getaddrinfo(multicast_ip, MULTICAST_PORT, &hints, &res)) != 0) {
         fprintf(stderr, "[do_multicast] getaddrinfo: %s\n", gai_strerror(status));
-        return (-1);
+        return (error_return);
     }
 	printf("[do_multicast] %s %s sending (%s)...\n",multicast_ip, MULTICAST_PORT, msg);
 
@@ -651,7 +652,7 @@ int do_multicast(SOCKET *mc_socket, char *multicast_ip, char * msg) {
 
     if (sendto(*mc_socket, msg, strlen(msg), 0, res->ai_addr, res->ai_addrlen) == -1) {
         fprintf(stderr, "[do_multicast] sendto failed: %s\n", strerror(errno));
-		return (-1);
+		return (error_return);
     }
 
 	printf("[do_multicast] sent (%s)...\n", msg);
@@ -721,7 +722,7 @@ SOCKET service_discovery(SOCKET *mc_socket, SOCKET tcp_socket, struct serverInfo
 						if (!ISVALIDSOCKET(socket_client))
 						{
 							fprintf(stderr, "[service_discover] accept() failed. (%d)\n", GETSOCKETERRNO());
-							return (1);
+							return (-1);
 						}
 						FD_SET(socket_client, &master);
 						if (socket_client > socket_max)
@@ -773,6 +774,7 @@ SOCKET service_discovery(SOCKET *mc_socket, SOCKET tcp_socket, struct serverInfo
 
 
 SOCKET handle_mcast_receive(SOCKET mc_socket, struct serverInfo * connected_peers) {
+	
     char buf[1024];
     struct sockaddr_in sender_addr;
     socklen_t sender_addr_len = sizeof(sender_addr);
@@ -781,7 +783,7 @@ SOCKET handle_mcast_receive(SOCKET mc_socket, struct serverInfo * connected_peer
 
     if (bytes_received == -1) {
         fprintf(stderr, "[handle_mcast_receive] recvfrom() failed. (%d)\n", GETSOCKETERRNO());
-        return (-1);
+        return error_return;
     }
 
     buf[bytes_received] = '\0'; // Null-terminate the string
@@ -790,24 +792,25 @@ SOCKET handle_mcast_receive(SOCKET mc_socket, struct serverInfo * connected_peer
 	if (connected_peers->leader == 1)
 	{
 		SOCKET peer_socket = peer_mcast_receive(connected_peers, buf, sender_addr);
-		if (peer_socket == -1)
+		if (peer_socket == error_return)
 		{
 			fprintf(stderr, "[handle_mcast_receive] peer_mcast_receive() failed. (%d)\n", GETSOCKETERRNO());
-			return (-1);}
+			return error_return;}
+		
 		return (peer_socket);
 	} else if (sscanf(buf, "%d", &received_id) == 1) {
         int leaderId = connected_peers->next->ID; // Get the next peer
 		if (received_id == leaderId) {
 			printf("[handle_mcast_receive] Leader <Ok> ID: %d\n", received_id);
-			return (-1);
+			return error_return;
 		} else if (connected_peers->next->next != NULL) {
 			if (connected_peers->next->next->ID == received_id) {
 				printf("[handle_mcast_receive] Successor <Ok> ID: %d\n", received_id);
-				return (-1);
+				return error_return;
 			}
 		}
     }
-	return (-1);
+	return error_return;
 }
 
 SOCKET peer_mcast_receive(struct serverInfo * connected_peers, char *buf, struct sockaddr_in sender_addr) {
@@ -820,7 +823,7 @@ SOCKET peer_mcast_receive(struct serverInfo * connected_peers, char *buf, struct
 		if (ctcp_socket == -1)
 		{
 			fprintf(stderr, "[peer_mcast_receive] setup_tcp_client() failed. (%d)\n", GETSOCKETERRNO());
-			return (-1);
+			return (error_return);
 		}
         char message[1024];
 		if (connected_peers->next)
@@ -831,7 +834,7 @@ SOCKET peer_mcast_receive(struct serverInfo * connected_peers, char *buf, struct
 		
         if (send(ctcp_socket, message, strlen(message), 0) == -1) {
 			fprintf(stderr, "[peer_mcast_receive] send() failed. (%d)\n", GETSOCKETERRNO());
-			return (-1);
+			return (error_return);
 		}
 		append_server(&connected_peers, new_peer_id, (void *)inet_ntoa(sender_addr.sin_addr), new_peer_port, 0, ctcp_socket);
         return (ctcp_socket);
@@ -844,7 +847,7 @@ SOCKET peer_mcast_receive(struct serverInfo * connected_peers, char *buf, struct
 	} else {
 		printf("[peer_mcast_receive] Unknow message fomrat: (%lu) bytes: %.*s\n", strlen(buf), (int)strlen(buf), buf);
 	}
-   return (1);
+   return (error_return);
 }
 
 SOCKET setup_tcp_client(char *address, char *port)
@@ -856,7 +859,7 @@ SOCKET setup_tcp_client(char *address, char *port)
     struct addrinfo *peer_address;
     if (getaddrinfo(address, port, &hints, &peer_address)) {
         fprintf(stderr, "[setup_tcp_client] getaddrinfo() failed. (%d)\n", GETSOCKETERRNO());
-        return (-1);
+        return (error_return);
     }
 
 
@@ -876,7 +879,7 @@ SOCKET setup_tcp_client(char *address, char *port)
             peer_address->ai_socktype, peer_address->ai_protocol);
     if (!ISVALIDSOCKET(socket_peer)) {
         fprintf(stderr, "[setup_tcp_client] socket() failed. (%d)\n", GETSOCKETERRNO());
-        return (-1);
+        return (error_return);
     }
 
 
@@ -884,7 +887,7 @@ SOCKET setup_tcp_client(char *address, char *port)
     if (connect(socket_peer,
                 peer_address->ai_addr, peer_address->ai_addrlen)) {
         fprintf(stderr, "[setup_tcp_client] connect() failed. (%d)\n", GETSOCKETERRNO());
-        return (-1);
+        return (error_return);
     }
     freeaddrinfo(peer_address);
 
