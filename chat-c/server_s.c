@@ -12,33 +12,42 @@
 #define NEXT_SERVER_PORT "6970"
 #define BROADCAST_ADDRESS "192.168.0.255"
 #define BROADCAST_PORT "3938"
-#define MULTICAST_IP "239.1.1.1"
+#define MULTICAST_IP "239.10.0.1"
+#define MULTICAST_PORT "8082"
 
 typedef struct serverInfo {
     int ID;
     char *addr;
     int port;
 	int leader;
+	SOCKET tcp_socket;
 	struct serverInfo *next;
 } ServerInfo;
 
-SOCKET next_server();
 void send_server_info(SOCKET dest, ServerInfo *myInfo);
 SOCKET setup_tcp_socket();
-void assign_client_info(SOCKET socket_client, struct sockaddr_storage client_address);
+void assign_client_info(SOCKET socket_client, struct sockaddr_storage client_address, int temp);
 SOCKET setup_udp_socket(char * sock_ip, char *sock_port);
 int leader_election();
 void udp_multicast(char *msg, struct serverInfo *head, SOCKET udp_sockfd);
 void udp_broadcast(char *msg, SOCKET udp_sockfd);
 void handle_udp_recieve(ServerInfo *connected_peers, int leader, SOCKET udp_socket);
+SOCKET join_multicast(char *multicast_ip, char * mPORT);
+int do_multicast(SOCKET *mc_socket, char *multicast_ip, char * msg);
+SOCKET service_discovery(SOCKET *mc_socket, SOCKET tcp_socket, struct serverInfo *head);
+SOCKET handle_mcast_receive(SOCKET mc_socket, struct serverInfo * connected_peers);
+SOCKET peer_mcast_receive(struct serverInfo * connected_peers, char *buf, struct sockaddr_in sender_addr);
+SOCKET setup_tcp_client(char *address, char *port);
+
 
 // Data structure of servers to keep
 int server_info_exist(char *ip_addr, int port, struct serverInfo *head);
-struct serverInfo * create_server(int id, void *address, int port, int leader);
-int delete_server(char *ip_addr, struct serverInfo *head);
-void append_server(struct serverInfo **head, int id, void *address, int port, int leader);
+struct serverInfo * create_server(int id, void *address, int port, int leader, SOCKET tcp_socket);
+int delete_server(struct serverInfo *head, SOCKET tcp_socket);
+void append_server(struct serverInfo **head, int id, void *address, int port, int leader, SOCKET tcp_socket);
 void display_server(struct serverInfo *head);
 void free_server_storage(struct serverInfo *head);
+int does_id_exist(int id, struct serverInfo *head);
 
 
 struct ClientInfo {
@@ -49,6 +58,7 @@ struct ClientInfo {
 };
 
 struct ClientInfo clients[MAX_CONNECTION];
+struct ClientInfo *tempClient;
 int client_count = 0;
 
 int getRadomId(int min, int max) {
@@ -72,6 +82,7 @@ int main()
     time_t start_t, end_t;
 	int leader = 1;
 	SOCKET socket_max;
+	SOCKET ltcp_socket;
 	fd_set master;
 
     SOCKET socket_listen = setup_tcp_socket();
@@ -79,7 +90,7 @@ int main()
         return(1);
 
     struct serverInfo *connected_peers = NULL;
-	append_server(&connected_peers, getRadomId(1000, 100000), (void *)SERVER_IP, atoi(PORT), leader);
+	append_server(&connected_peers, getRadomId(1000, 100000), (void *)SERVER_IP, atoi(PORT), leader, socket_listen);
 
 	printf("[main] setting up select...\n");
 	FD_ZERO(&master);
@@ -90,19 +101,33 @@ int main()
 	if (udp_socket!=-1)
 	{
 		FD_SET(udp_socket, &master);
-		socket_max = udp_socket;
-	}
-	// connecto to next server
-    printf("connecting to next server...\n");
-    SOCKET next_server_socket = next_server();
-	if (next_server_socket!=-1)
-	{
-		FD_SET(next_server_socket, &master);
-		socket_max = next_server_socket;
-       	send_server_info(next_server_socket, connected_peers);
+		if (udp_socket > socket_max)
+			socket_max = udp_socket;
 	}
 
-    printf("Waiting for connections...\n");
+	// mc_socket the socket receiving multicast messages
+	SOCKET mc_socket = join_multicast(MULTICAST_IP, MULTICAST_PORT);
+	
+	if (mc_socket == -1)
+		return (1);
+	
+	ltcp_socket = service_discovery(&mc_socket, socket_listen, connected_peers);
+	if (ltcp_socket != -1) {
+		
+		FD_SET(ltcp_socket, &master);
+		if (ltcp_socket > socket_max)
+			socket_max = ltcp_socket;
+		connected_peers->leader = 0;
+	} else {
+		printf("[main] I am the leader.\n");
+	}
+
+	FD_SET(mc_socket, &master);
+	if (mc_socket > socket_max)
+		socket_max = mc_socket;
+
+	printf("[main] Waiting for TCP connections...\n");
+
     time(&start_t);
 	while (1)
 	{
@@ -121,14 +146,16 @@ int main()
         time(&end_t);
 		char msg1[12];
 		sprintf(msg1, "<%d>(OK)", connected_peers->ID);
-		char *msg2 = "NPeer(Ok)";
         if ((int)difftime(end_t, start_t) == 5)
         {
-			if (leader == 1)
-				udp_multicast(msg1, connected_peers, udp_socket);
+			FD_CLR(mc_socket, &master);
+			if (connected_peers->leader == 1)
+				do_multicast(&mc_socket, MULTICAST_IP, msg1);
 			else
-            	udp_multicast(msg2, connected_peers, udp_socket);
-		
+            	do_multicast(&mc_socket, MULTICAST_IP, msg1);
+			if (mc_socket > socket_max)
+				socket_max = mc_socket;
+			FD_SET(mc_socket, &master);
             printf("%d \n", (int)difftime(end_t, start_t));
             time(&start_t);
         }
@@ -157,14 +184,17 @@ int main()
 					char address_buffer[100];
 					getnameinfo((struct sockaddr*)&client_address, client_len, address_buffer, sizeof(address_buffer), 0, 0, NI_NUMERICHOST);
 					printf("New connection from %s\n", address_buffer);
-					assign_client_info(socket_client, client_address);
-				} else if (i == udp_socket)
-				{
+					assign_client_info(socket_client, client_address, 1);
+				} else if (i == udp_socket) {
 					printf("[main] read on udpsocket...\n");
 					handle_udp_recieve(connected_peers, leader, i);
-				}
-                else 
-                {
+				} else if (i == mc_socket) {
+					printf("[main] read on mcsocket...\n");
+					handle_mcast_receive(mc_socket, connected_peers);
+				} else if (i == ltcp_socket) {
+					printf("[main] read on ltcpsocket...\n");
+					handle_udp_recieve(connected_peers, leader, i);
+				} else {
 					char read[4096];
 					int byte_received = recv(i, read, 4096, 0);
 					if (byte_received < 1)
@@ -212,11 +242,7 @@ int main()
 						{
 							int bytes_sent = send(dest_client->socket, read, byte_received, 0);
             				printf("Sent %d bytes to (%d)\n", bytes_sent, dest_client->id);
-						} else if (i == next_server_socket)
-                        {
-                            printf("From peer server: {%s}\n", read);
-                        }
-                         else {
+						} else {
 							printf("Client not found (%d).\n", dest_id);
 						}
 					} else {
@@ -237,7 +263,6 @@ int main()
 		}
 	}
 	printf("Closing listening socket...\n");
-	CLOSESOCKET(next_server_socket);
     CLOSESOCKET(socket_listen);
 	CLOSESOCKET(udp_socket);
     free(connected_peers);
@@ -253,64 +278,35 @@ int main()
     return 0;
 }
 
-void assign_client_info(SOCKET socket_client, struct sockaddr_storage client_address)
+void assign_client_info(SOCKET socket_client, struct sockaddr_storage client_address, int temp)
 {
 	
-	//
+	if (client_count == MAX_CONNECTION)
+	{
+		printf("Client limit reached. Rejecting client.\n");
+		CLOSESOCKET(socket_client);
+		return;
+	}
 	int client_id = getRadomId(10, 1000)*(++client_count);
-	printf("Client id is (%d).\n", client_id);
 	struct ClientInfo *client_info = (struct ClientInfo *)malloc(sizeof(struct ClientInfo));
-	// printf("Malloced %p \n", client_info);
+	if (client_info == NULL)
+	{
+		printf("[]Memory allocation failed\n");
+		exit(1);
+	}
+	printf("Client id is (%d).\n", client_id);
 	client_info->id = client_id;
 	client_info->socket = socket_client;
 	client_info->address = client_address;
 	client_info->addr = client_info;
-	clients[client_count - 1] = *client_info;
-	send(socket_client, (void *)&client_id, sizeof(client_id), 0);
-	printf("Assigned ID (%d) to (%d)\n", client_id, client_count);
-}
-SOCKET next_server()
-{
-	printf("Configuring remote address...\n");
-    struct addrinfo hints;
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_socktype = SOCK_STREAM;
-    struct addrinfo *peer_address;
-    if (getaddrinfo(NEXT_SERVER_IP, NEXT_SERVER_PORT, &hints, &peer_address)) {
-        fprintf(stderr, "[next_server] getaddrinfo() failed. (%d)\n", GETSOCKETERRNO());
-        return (-1);
-    }
-
-
-    printf("[next_server] Remote address is: ");
-    char address_buffer[100];
-    char service_buffer[100];
-    getnameinfo(peer_address->ai_addr, peer_address->ai_addrlen,
-            address_buffer, sizeof(address_buffer),
-            service_buffer, sizeof(service_buffer),
-            NI_NUMERICHOST);
-    printf("%s %s\n", address_buffer, service_buffer);
-
-
-    printf("[next_server] Creating socket...\n");
-
-    SOCKET peer_socket = socket(peer_address->ai_family,
-            peer_address->ai_socktype, peer_address->ai_protocol);
-    if (!ISVALIDSOCKET(peer_socket)) {
-        fprintf(stderr, "[next_server] socket() failed. (%d)\n", GETSOCKETERRNO());
-        return (-1);
-    }
-
-
-    printf("[next_server] Connecting...\n");
-    if (connect(peer_socket,
-                peer_address->ai_addr, peer_address->ai_addrlen)) {
-        fprintf(stderr, "[next_server] connect() failed. (%d)\n", GETSOCKETERRNO());
-		CLOSESOCKET(peer_socket);
-        return (-1);
-    }
-	freeaddrinfo(peer_address);
-	return (peer_socket);
+	if (temp == 0)
+	{
+		clients[client_count - 1] = *client_info;
+		send(socket_client, (void *)&client_id, sizeof(client_id), 0);
+		printf("Assigned ID (%d) to (%d)\n", client_id, client_count);
+	} else {
+		tempClient = client_info;
+	}
 }
 
 void send_server_info(SOCKET dest, ServerInfo *myInfo)
@@ -320,11 +316,8 @@ void send_server_info(SOCKET dest, ServerInfo *myInfo)
 
     sprintf(infoBuf, "My address {%s}.\nMy ID {%d}.\nMy Port {%d}.\n", myInfo->addr, myInfo->ID, 
     myInfo->port);
-    printf("My address {%s}.\nMy ID {%d}.\nMy Port {%d}.\n", myInfo->addr, myInfo->ID, 
-    myInfo->port);
     sendBytes = strlen(infoBuf);
     send(dest, infoBuf, sendBytes, 0);
-
 }
 
 
@@ -400,6 +393,11 @@ SOCKET setup_udp_socket(char * sock_ip, char *sock_port)
 		CLOSESOCKET(socket_listen);
         return (-1);
     }
+	int broadcast_loop = 0;
+	if (setsockopt(socket_listen, SOL_SOCKET, SO_BROADCAST, (char*)&broadcast_loop, sizeof(broadcast_loop)) < 0) {
+		fprintf(stderr, "[UDP] setsockopt() failed. (%d)\n", GETSOCKETERRNO());
+		return (-1);
+	}
 
     printf("[UDP] Binding socket to local address...\n");
 	if (bind(socket_listen, udp_bind_address->ai_addr, udp_bind_address->ai_addrlen))
@@ -465,20 +463,19 @@ void handle_udp_recieve(ServerInfo *connected_peers, int leader, SOCKET udp_sock
 			if (bytes_received < 1)
 			{
 				printf("[Leader UDP] {%s:%s} disconnected.\n", address_buffer, service_buffer);
-				delete_server(address_buffer, connected_peers);
+				delete_server(connected_peers, 0);
 			}
 			else
 			{
 				int ID, leader, mPORT;
 				char multicastIP[16];
 
-				if (sscanf(read, "%d:%15[^:]:%d:%d", ID, multicastIP, mPORT, leader) == 4)
+				if (sscanf(read, "%d:%15[^:]:%d:%d", &ID, multicastIP, &mPORT, &leader) == 4)
 				{
 					printf("[Leader UDP] Received: (%s) (%d) bytes: %.*s\n", address_buffer, bytes_received, bytes_received, read);
-					join_multicast(multicastIP, mPORT);
+					join_multicast(multicastIP, MULTICAST_PORT);
 				} else {
 					printf("[Leader UDP] Received: (%s) (%d) bytes: %.*s\n", address_buffer, bytes_received, bytes_received, read);
-					server_info_exist(address_buffer, atoi(service_buffer), connected_peers);
 				}
 			}
 			
@@ -486,12 +483,10 @@ void handle_udp_recieve(ServerInfo *connected_peers, int leader, SOCKET udp_sock
 			if (bytes_received < 1)
 			{
 				printf("[NPeer UDP] {%s:%s} disconnected.\n", address_buffer, service_buffer);
-				delete_server(address_buffer, connected_peers);
 			}
 			else
 			{
 				printf("[NPeer UDP] Received: (%d) bytes: %.*s\n", bytes_received, bytes_received, read);
-				server_info_exist(address_buffer, atoi(service_buffer), connected_peers);
 			}
 
 		}
@@ -507,11 +502,11 @@ int server_info_exist(char *ip_addr, int port, struct serverInfo *head)
 		else
 			current = current->next;
 	}
-	append_server(&head, getRadomId(1000, 1000000), ip_addr, port, 0);
+	append_server(&head, getRadomId(1000, 1000000), ip_addr, port, 0, -1);
 	return (0);
 }
 
-struct serverInfo * create_server(int id, void *address, int port, int leader)
+struct serverInfo * create_server(int id, void *address, int port, int leader, SOCKET tcp_socket)
 {
 	struct serverInfo* server_info = (struct serverInfo *)malloc(sizeof(struct serverInfo));
 	if (server_info == NULL)
@@ -523,14 +518,15 @@ struct serverInfo * create_server(int id, void *address, int port, int leader)
 	server_info->ID = id;
 	server_info->port = port;
 	server_info->leader = leader;
+	server_info->tcp_socket = tcp_socket;
 	server_info->next = NULL;
 	
 	return (server_info);
 }
 
-void append_server(struct serverInfo **head, int id, void *address, int port, int leader)
+void append_server(struct serverInfo **head, int id, void *address, int port, int leader, SOCKET tcp_socket)
 {
-	struct serverInfo * new_server = create_server(id, address, port, leader);
+	struct serverInfo * new_server = create_server(id, address, port, leader, tcp_socket);
 	printf("[append] new sever created...\n");
 	if (*head == NULL)
 		*head = new_server;
@@ -544,12 +540,12 @@ void append_server(struct serverInfo **head, int id, void *address, int port, in
 	display_server(*head);
 }
 
-int delete_server(char *ip_addr, struct serverInfo *head)
+int delete_server(struct serverInfo *head, SOCKET tcp_socket)
 {
 	struct serverInfo * current = head;
 	struct serverInfo * temp = NULL;
 	while (current != NULL){
-		if (current->next->addr == ip_addr)
+		if (current->next->tcp_socket == tcp_socket)
 		{
 			temp = current->next;
 			current->next = current->next->next;
@@ -587,20 +583,17 @@ void free_server_storage(struct serverInfo *head)
 	}
 }
 
-SOCKET join_multicast(char *multicast_ip, int mPORT)
+SOCKET join_multicast(char *multicast_ip, char * mPORT)
 {
     struct addrinfo hints, *bind_addr;
     SOCKET mc_socket;
-    char port_str[6]; // Buffer for port string
 
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_DGRAM;
     hints.ai_flags = AI_PASSIVE;
 
-    sprintf(port_str, "%d", mPORT); // Convert port number to string
-
-    if (getaddrinfo(multicast_ip, port_str, &hints, &bind_addr))
+    if (getaddrinfo(multicast_ip, mPORT, &hints, &bind_addr))
     {
         fprintf(stderr, "[join_multicast] getaddrinfo() failed. (%d)\n", GETSOCKETERRNO());
         return (-1);
@@ -619,16 +612,21 @@ SOCKET join_multicast(char *multicast_ip, int mPORT)
     mreq.imr_interface.s_addr = htonl(INADDR_ANY);
     if (setsockopt(mc_socket, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) < 0)
     {
-        fprintf(stderr, "setsockopt() failed. (%d)\n", GETSOCKETERRNO());
+        fprintf(stderr, "[join_multicast] setsockopt() failed. (%d)\n", GETSOCKETERRNO());
         return (-1);
     }
+	char multicast_loop = 0;
+	if (setsockopt(mc_socket, IPPROTO_IP, IP_MULTICAST_LOOP, &multicast_loop, sizeof(multicast_loop)) < 0) {
+		fprintf(stderr, "[join_multicast] setsockopt() failed. (%d)\n", GETSOCKETERRNO());
+		return (-1);
+	}
 
     freeaddrinfo(bind_addr); // Free the linked-list
 
     return (mc_socket);
 }
 
-int do_multicast(SOCKET mc_socket, char *multicast_ip, struct serverInfo *head) {
+int do_multicast(SOCKET *mc_socket, char *multicast_ip, char * msg) {
     struct addrinfo hints, *res;
     int status;
 
@@ -637,18 +635,257 @@ int do_multicast(SOCKET mc_socket, char *multicast_ip, struct serverInfo *head) 
     hints.ai_socktype = SOCK_DGRAM; 
 	hints.ai_flags = AI_PASSIVE;
 
-    if ((status = getaddrinfo(multicast_ip, PORT, &hints, &res)) != 0) {
-        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(status));
-        return 1;
+    if ((status = getaddrinfo(multicast_ip, MULTICAST_PORT, &hints, &res)) != 0) {
+        fprintf(stderr, "[do_multicast] getaddrinfo: %s\n", gai_strerror(status));
+        return (-1);
+    }
+	printf("[do_multicast] %s %s sending (%s)...\n",multicast_ip, MULTICAST_PORT, msg);
+
+    // char message[32];
+	// sprintf(message, "%d:%s:%d", head->ID, head->addr, head->leader);
+
+    if (sendto(*mc_socket, msg, strlen(msg)+1, 0, res->ai_addr, res->ai_addrlen) == -1) {
+        fprintf(stderr, "[do_multicast] sendto failed: %s\n", strerror(errno));
+		return (-1);
     }
 
-    char message[32];
-	sprintf(message, "%d:%s:%d", head->ID, head->addr, head->leader);
-    if (sendto(mc_socket, message, strlen(message)+1, 0, res->ai_addr, res->ai_addrlen) == -1) {
-        perror("sendto");
-        return 1;
-    }
-
+	printf("[do_multicast] sent (%s)...\n", msg);
+	// int yes = 1;
+	// if (setsockopt(mc_socket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1) {
+	// 	fprintf(stderr, "[do_multicast] setsockopt() failed. (%d)\n", GETSOCKETERRNO());
+	// 	// handle error
+	// }
+	close(*mc_socket);
+	*mc_socket = join_multicast(multicast_ip, MULTICAST_PORT);
     freeaddrinfo(res); // free the linked list
     return 0;
+}
+
+SOCKET service_discovery(SOCKET *mc_socket, SOCKET tcp_socket, struct serverInfo *head)
+{
+	fd_set master;
+    FD_ZERO(&master);
+    FD_SET(tcp_socket, &master);
+
+    SOCKET socket_max = tcp_socket;
+
+    char msg[32];
+    sprintf(msg, "%d:%d", head->ID, head->port);
+	SOCKET socket_client;
+	char address_buffer[100];
+	char service_buffer[100];
+
+    // for (int attempt = 0; attempt < 3; ++attempt)
+    // {
+        printf("[service_discovery] broadcasting ID (%s), attempt...\n", msg);
+        if (do_multicast(mc_socket, MULTICAST_IP, msg) == -1)
+			return (-1);
+
+        fd_set reads;
+        reads = master;
+
+        struct timeval timeout;
+        timeout.tv_sec = 3; // Wait for 3 seconds
+        timeout.tv_usec = 0;
+
+        int activity = select(socket_max + 1, &reads, NULL, NULL, &timeout);
+
+        if (activity == -1) {
+            fprintf(stderr, "[service_discovery] select() failed. (%d)\n", GETSOCKETERRNO());
+			return (-1);
+        } else if (activity == 0) {
+            printf("[service_discovery] No response received within 3 seconds.\n");
+            
+        } else {
+            // A response was received. Process it...
+            for (int i = 0; i <= socket_max; i++) {
+                if (FD_ISSET(i, &reads)) {
+					if (i==tcp_socket) {
+
+						struct sockaddr_storage client_address;
+						socklen_t client_len = sizeof(client_address);
+						socket_client = accept(tcp_socket, (struct sockaddr*)&client_address, &client_len);
+						if (!ISVALIDSOCKET(socket_client))
+						{
+							fprintf(stderr, "accept() failed. (%d)\n", GETSOCKETERRNO());
+							return (1);
+						}
+						FD_SET(socket_client, &master);
+						if (socket_client > socket_max)
+							socket_max = socket_client;
+						
+						
+						getnameinfo((struct sockaddr*)&client_address, client_len, 
+						address_buffer, sizeof(address_buffer), service_buffer, sizeof(service_buffer), NI_NUMERICHOST | NI_NUMERICSERV);
+						printf("[service_discovery] New connection from %s\n", address_buffer);
+					} else if (i==socket_client) {
+						// This socket has data. Read it...
+						char buf[1024];
+						int numBytes = recv(i, buf, sizeof buf, 0);
+						if (numBytes == -1)
+						{
+							fprintf(stderr, "[service_discovery] recv() failed. (%d)\n", GETSOCKETERRNO());
+							return (-1);
+						}
+						int ID, leader, mPORT;
+						char successorIP[16];
+						if (sscanf(buf, "%d:%15[^:]:%d:%d", &ID, successorIP, &mPORT, &leader) == 4){
+							printf("[service_discovery] Received: (%d) bytes: %.*s\n", numBytes, numBytes, buf);
+							if (leader == 1)
+							{
+								printf("[service_discovery] Leader found.\n");
+								append_server(&head, ID, (void *)address_buffer, head->port, leader, socket_client);
+								if (strlen(successorIP) < 7)
+								{
+									char port[6];
+									sprintf(port, "%d", mPORT);
+									SOCKET socket_successor = setup_tcp_client(successorIP, port);
+									if (socket_successor == -1)
+										return (-1);
+									append_server(&head, ID, (void *)successorIP, mPORT, leader, socket_successor);
+								}
+
+								return (socket_client);
+							} else {
+								FD_CLR(socket_client, &master);
+								CLOSESOCKET(socket_client);
+								continue;
+							}
+						} else {
+							FD_CLR(socket_client, &master);
+							CLOSESOCKET(socket_client);
+							continue;
+						}
+					} else {
+						FD_CLR(socket_client, &master);
+						CLOSESOCKET(socket_client);
+						continue;
+					}
+                }
+            }
+        }
+    // }
+	return (-1);
+}
+
+
+SOCKET handle_mcast_receive(SOCKET mc_socket, struct serverInfo * connected_peers) {
+    char buf[1024];
+    struct sockaddr_in sender_addr;
+    socklen_t sender_addr_len = sizeof(sender_addr);
+
+    int bytes_received = recvfrom(mc_socket, buf, sizeof(buf), 0, (struct sockaddr*)&sender_addr, &sender_addr_len);
+
+    if (bytes_received == -1) {
+        fprintf(stderr, "[handle_mcast_receive] recvfrom() failed. (%d)\n", GETSOCKETERRNO());
+        return (-1);
+    }
+
+    buf[bytes_received] = '\0'; // Null-terminate the string
+
+    int received_id;
+	if (connected_peers->leader == 1)
+	{
+		SOCKET ctcp_socket = peer_mcast_receive(connected_peers, buf, sender_addr);
+		if (ctcp_socket == -1)
+			return (-1);
+		return (ctcp_socket);
+	} else if (sscanf(buf, "%d", &received_id) == 1) {
+        int leaderId = connected_peers->next->ID; // Get the next peer
+		if (received_id == leaderId) {
+			printf("[handle_mcast_receive] Leader <Ok> ID: %d\n", received_id);
+			return (1);
+		} else if (connected_peers->next->next != NULL) {
+			if (connected_peers->next->next->ID == received_id) {
+				printf("[handle_mcast_receive] Successor <Ok> ID: %d\n", received_id);
+				return (1);
+			}
+		}
+    }
+	return (-1);
+}
+
+SOCKET peer_mcast_receive(struct serverInfo * connected_peers, char *buf, struct sockaddr_in sender_addr) {
+
+    int new_peer_id, new_peer_port;
+    if (sscanf(buf, "%d:%d", &new_peer_id, &new_peer_port) == 2) {
+		char port[6];
+		sprintf(port, "%d", new_peer_port);
+		SOCKET ctcp_socket = setup_tcp_client(inet_ntoa(sender_addr.sin_addr), port);
+		if (ctcp_socket == -1)
+			return (-1);
+        char message[1024];
+		if (connected_peers->next != NULL)
+        	snprintf(message, sizeof(message), "%d:%s:%d:%d", connected_peers->ID, connected_peers->next->addr, connected_peers->next->port, connected_peers->leader);
+		else
+			snprintf(message, sizeof(message), "%d:%s:%d:%d", connected_peers->ID, "0", '0', connected_peers->leader);
+		// add the new peer to the list
+		
+        if (send(ctcp_socket, message, strlen(message), 0) == -1) {
+			fprintf(stderr, "[peer_mcast_receive] send() failed. (%d)\n", GETSOCKETERRNO());
+			return (-1);
+		}
+		append_server(&connected_peers, new_peer_id, (void *)inet_ntoa(sender_addr.sin_addr), new_peer_port, 0, ctcp_socket);
+        return ctcp_socket;
+    } else if (sscanf(buf, "%d", &new_peer_id) == 1) {
+		if (does_id_exist(new_peer_id, connected_peers) != 0)
+			printf("[peer_mcast_receive] peer ID (%d) <Ok>.\n", new_peer_id);
+
+	}
+   return (-1);
+}
+
+SOCKET setup_tcp_client(char *address, char *port)
+{
+    printf("[setup_tcp_client] Configuring remote address...\n");
+    struct addrinfo hints;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_socktype = SOCK_STREAM;
+    struct addrinfo *peer_address;
+    if (getaddrinfo(address, port, &hints, &peer_address)) {
+        fprintf(stderr, "[setup_tcp_client] getaddrinfo() failed. (%d)\n", GETSOCKETERRNO());
+        return (-1);
+    }
+
+
+    printf("[setup_tcp_client] Remote address is: ");
+    char address_buffer[100];
+    char service_buffer[100];
+    getnameinfo(peer_address->ai_addr, peer_address->ai_addrlen,
+            address_buffer, sizeof(address_buffer),
+            service_buffer, sizeof(service_buffer),
+            NI_NUMERICHOST);
+    printf("[setup_tcp_client] %s %s\n", address_buffer, service_buffer);
+
+
+    printf("[setup_tcp_client] Creating socket...\n");
+    SOCKET socket_peer;
+    socket_peer = socket(peer_address->ai_family,
+            peer_address->ai_socktype, peer_address->ai_protocol);
+    if (!ISVALIDSOCKET(socket_peer)) {
+        fprintf(stderr, "[setup_tcp_client] socket() failed. (%d)\n", GETSOCKETERRNO());
+        return (-1);
+    }
+
+
+    printf("[setup_tcp_client] Connecting...\n");
+    if (connect(socket_peer,
+                peer_address->ai_addr, peer_address->ai_addrlen)) {
+        fprintf(stderr, "[setup_tcp_client] connect() failed. (%d)\n", GETSOCKETERRNO());
+        return (-1);
+    }
+    freeaddrinfo(peer_address);
+
+	return (socket_peer);
+}
+
+int does_id_exist(int id, struct serverInfo *head) {
+    struct serverInfo *current = head;
+    while (current != NULL) {
+        if (current->ID == id) {
+            return (current->ID); 
+        }
+        current = current->next;
+    }
+    return (0);
 }
