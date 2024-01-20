@@ -187,9 +187,11 @@ int main()
 					assign_client_info(socket_client, client_address, 1);
 				} else if (i == mc_socket) {
 					SOCKET peer_socket = handle_mcast_receive(mc_socket, connected_peers);
-					if (peer_socket > 0){
+					if (peer_socket > 1){
 						printf("[main] The peer socket (%d)...\n", peer_socket);
 						FD_SET(peer_socket, &master);
+						if (peer_socket > socket_max)
+							socket_max = peer_socket;
 					}
 				} else {
 					char read[4096];
@@ -732,31 +734,24 @@ SOCKET service_discovery(SOCKET *mc_socket, SOCKET tcp_socket, struct serverInfo
 							fprintf(stderr, "[service_discovery] recv() failed. (%d)\n", GETSOCKETERRNO());
 							return (-1);
 						}
-						int ID, leader, mPORT;
+						int ID, IDs, mPORT;
 						char successorIP[16];
-						if (sscanf(buf, "%d:%15[^:]:%d:%d", &ID, successorIP, &mPORT, &leader) == 4){
+						if (sscanf(buf, "%d:%15[^:]:%d:%d", &ID, successorIP, &mPORT, &IDs) == 4){
 							printf("[service_discovery] Received: (%d) bytes: %.*s\n", numBytes, numBytes, buf);
-							if (leader == 1)
+							printf("[service_discovery] Leader found.\n");
+							head->leader = 0;
+							append_server(&head, ID, (void *)address_buffer, head->port, 1, socket_client);
+							if (strlen(successorIP) >= 8)
 							{
-								printf("[service_discovery] Leader found.\n");
-								head->leader = 0;
-								append_server(&head, ID, (void *)address_buffer, head->port, leader, socket_client);
-								if (strlen(successorIP) >= 8)
-								{
-									char port[6];
-									sprintf(port, "%d", mPORT);
-									SOCKET socket_successor = setup_tcp_client(successorIP, port);
-									if (socket_successor == -1)
-										return (-1);
-									append_server(&head, ID, (void *)successorIP, mPORT, leader, socket_successor);
-								}
-
-								return (socket_client);
-							} else {
-								FD_CLR(socket_client, &master);
-								CLOSESOCKET(socket_client);
-								continue;
+								char port[6];
+								sprintf(port, "%d", mPORT);
+								SOCKET socket_successor = setup_tcp_client(successorIP, port);
+								if (socket_successor == -1)
+									return (-1);
+								append_server(&head, IDs, (void *)successorIP, mPORT, 0, socket_successor);
 							}
+
+							return (socket_client);
 						} else {
 							FD_CLR(socket_client, &master);
 							CLOSESOCKET(socket_client);
@@ -822,8 +817,8 @@ SOCKET peer_mcast_receive(struct serverInfo * connected_peers, char *buf, struct
 			return (-1);
 		}
         char message[1024];
-		if (connected_peers->next != NULL)
-        	snprintf(message, sizeof(message), "%d:%s:%d:%d", connected_peers->ID, connected_peers->next->addr, connected_peers->next->port, connected_peers->leader);
+		if (connected_peers->next)
+        	snprintf(message, sizeof(message), "%d:%s:%d:%d", connected_peers->ID, connected_peers->next->addr, connected_peers->next->port, connected_peers->next->ID);
 		else
 			snprintf(message, sizeof(message), "%d:%s:%d:%d", connected_peers->ID, "0.0.0.0", '0', connected_peers->leader);
 		// add the new peer to the list
