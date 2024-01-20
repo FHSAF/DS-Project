@@ -47,7 +47,7 @@ int delete_server(struct serverInfo *head, SOCKET tcp_socket);
 void append_server(struct serverInfo **head, int id, void *address, int port, int leader, SOCKET tcp_socket);
 void display_server(struct serverInfo *head);
 void free_server_storage(struct serverInfo *head);
-int does_id_exist(int id, struct serverInfo *head);
+int ist_peer_server(int id, struct serverInfo *head);
 
 
 struct ClientInfo {
@@ -187,8 +187,10 @@ int main()
 					assign_client_info(socket_client, client_address, 1);
 				} else if (i == mc_socket) {
 					SOCKET peer_socket = handle_mcast_receive(mc_socket, connected_peers);
-					if (peer_socket > 0)
+					if (peer_socket > 0){
 						printf("[main] The peer socket (%d)...\n", peer_socket);
+						FD_SET(peer_socket, &master);
+					}
 				} else {
 					char read[4096];
 					int byte_received = recv(i, read, 4096, 0);
@@ -552,7 +554,7 @@ void display_server(struct serverInfo *head)
 	printf("\n=================Servers I know=================\n");
 	while (current != NULL)
 	{
-		printf("\tID: %d, IP: %s:%d, Leader: %d\n", current->ID, current->addr, current->port, current->leader);
+		printf("\tID: %d, IP: %s:%d, Leader: %d, Socket: %d\n", current->ID, current->addr, current->port, current->leader, current->tcp_socket);
 		current = current->next;
 	}
 	printf("=================Servers I know=================\n\n");
@@ -833,7 +835,7 @@ SOCKET peer_mcast_receive(struct serverInfo * connected_peers, char *buf, struct
 		append_server(&connected_peers, new_peer_id, (void *)inet_ntoa(sender_addr.sin_addr), new_peer_port, 0, ctcp_socket);
         return (ctcp_socket);
     } else if (sscanf(buf, "%d", &new_peer_id) == 1) {
-		if (does_id_exist(new_peer_id, connected_peers) != 0)
+		if (server_info_exist(new_peer_id, connected_peers) != 0)
 			printf("[peer_mcast_receive] peer ID (%d) <Ok>.\n", new_peer_id);
 		else
 			printf("[peer_mcast_receive] ID (%d) Not known.\n", new_peer_id);
@@ -888,10 +890,12 @@ SOCKET setup_tcp_client(char *address, char *port)
 	return (socket_peer);
 }
 
-int does_id_exist(int id, struct serverInfo *head) {
+int ist_peer_server(int sockfd, struct serverInfo *head) {
+	if (head->leader != 1)
+		return (0);
     struct serverInfo *current = head;
     while (current != NULL) {
-        if (current->ID == id) {
+        if (current->tcp_socket == sockfd) {
             return (current->ID); 
         }
         current = current->next;
@@ -909,6 +913,9 @@ void handle_disconnection(struct serverInfo * head, SOCKET i, SOCKET udp_socket,
 		printf("[handle_disconnection] leader disconnected...\n");
 		printf("[handle_disconnection] Leader election required...\n");
 		head->leader = 1;
+		delete_server(head, i);
+	} else if(ist_peer_server(i, head) != 0) {
+		printf("[handle_disconnection] Peer (%d) disconnected...\n", ist_peer_server(i, head));
 		delete_server(head, i);
 	} else {
 		for (int ci = 0; ci <= client_count; ++ci)

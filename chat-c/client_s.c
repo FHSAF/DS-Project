@@ -56,6 +56,7 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "connect() failed. (%d)\n", GETSOCKETERRNO());
         return 1;
     }
+    printf("Connected.\n");
 
     int client_id;
     freeaddrinfo(peer_address);
