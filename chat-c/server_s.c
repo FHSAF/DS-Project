@@ -86,7 +86,7 @@ int main()
 	fd_set master;
 
     SOCKET socket_listen = setup_tcp_socket();
-    if (socket_listen == -1)
+    if (!ISVALIDSOCKET(socket_listen))
         return(1);
 
     struct serverInfo *connected_peers = NULL;
@@ -108,11 +108,11 @@ int main()
 	// mc_socket the socket receiving multicast messages
 	SOCKET mc_socket = join_multicast(MULTICAST_IP, MULTICAST_PORT);
 	
-	if (mc_socket == -1)
+	if (!ISVALIDSOCKET(mc_socket))
 		return (1);
 	
 	ltcp_socket = service_discovery(&mc_socket, socket_listen, connected_peers);
-	if (ltcp_socket != -1) {
+	if (!ISVALIDSOCKET(ltcp_socket)) {
 		
 		FD_SET(ltcp_socket, &master);
 		if (ltcp_socket > socket_max)
@@ -187,7 +187,12 @@ int main()
 					assign_client_info(socket_client, client_address, 1);
 				} else if (i == mc_socket) {
 					SOCKET peer_socket = handle_mcast_receive(mc_socket, connected_peers);
-					if (peer_socket > 1){
+					#if defined(_WIN32)
+					if (!ISVALIDSOCKET(socket_listen))
+					#else
+					if (peer_socket > 1)
+					#endif
+					{
 						printf("[main] The peer socket (%d)...\n", peer_socket);
 						FD_SET(peer_socket, &master);
 						if (peer_socket > socket_max)
@@ -589,7 +594,8 @@ SOCKET join_multicast(char *multicast_ip, char * mPORT)
         fprintf(stderr, "[join_multicast] getaddrinfo() failed. (%d)\n", GETSOCKETERRNO());
         return (-1);
     }
-    if ((mc_socket = socket(bind_addr->ai_family, bind_addr->ai_socktype, bind_addr->ai_protocol)) == -1){
+	mc_socket = socket(bind_addr->ai_family, bind_addr->ai_socktype, bind_addr->ai_protocol);
+    if (!(ISVALIDSOCKET(mc_socket))){
         fprintf(stderr, "[join_multicast] socket() failed. (%d)\n", GETSOCKETERRNO());
         return (-1);
     }
@@ -793,11 +799,11 @@ SOCKET handle_mcast_receive(SOCKET mc_socket, struct serverInfo * connected_peer
         int leaderId = connected_peers->next->ID; // Get the next peer
 		if (received_id == leaderId) {
 			printf("[handle_mcast_receive] Leader <Ok> ID: %d\n", received_id);
-			return (0);
+			return (-1);
 		} else if (connected_peers->next->next != NULL) {
 			if (connected_peers->next->next->ID == received_id) {
 				printf("[handle_mcast_receive] Successor <Ok> ID: %d\n", received_id);
-				return (0);
+				return (-1);
 			}
 		}
     }
