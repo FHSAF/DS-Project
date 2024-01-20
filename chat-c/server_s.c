@@ -107,6 +107,7 @@ int main()
 
 	// mc_socket the socket receiving multicast messages
 	SOCKET mc_socket = join_multicast(MULTICAST_IP, MULTICAST_PORT);
+	printf("[main] mc_socket (%d)...\n", mc_socket);
 	
 	if (mc_socket == -1)
 		return (1);
@@ -149,6 +150,7 @@ int main()
         if ((int)difftime(end_t, start_t) == 5)
         {
 			FD_CLR(mc_socket, &master);
+			printf("[main] before multicasting (%d)...\n", mc_socket);
 			if (connected_peers->leader == 1)
 				do_multicast(&mc_socket, MULTICAST_IP, msg1);
 			else
@@ -157,6 +159,7 @@ int main()
 				socket_max = mc_socket;
 			FD_SET(mc_socket, &master);
             printf("%d \n", (int)difftime(end_t, start_t));
+			printf("[main] after multicasting (%d)...\n", mc_socket);
             time(&start_t);
         }
 
@@ -593,7 +596,7 @@ SOCKET join_multicast(char *multicast_ip, char * mPORT)
     hints.ai_socktype = SOCK_DGRAM;
     hints.ai_flags = AI_PASSIVE;
 
-    if (getaddrinfo(multicast_ip, mPORT, &hints, &bind_addr))
+    if (getaddrinfo(NULL, mPORT, &hints, &bind_addr))
     {
         fprintf(stderr, "[join_multicast] getaddrinfo() failed. (%d)\n", GETSOCKETERRNO());
         return (-1);
@@ -608,7 +611,7 @@ SOCKET join_multicast(char *multicast_ip, char * mPORT)
         return (-1);
     }
     struct ip_mreq mreq;
-    mreq.imr_multiaddr.s_addr = ((struct sockaddr_in*)bind_addr->ai_addr)->sin_addr.s_addr;
+    mreq.imr_multiaddr.s_addr = inet_addr(multicast_ip);
     mreq.imr_interface.s_addr = htonl(INADDR_ANY);
     if (setsockopt(mc_socket, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) < 0)
     {
@@ -655,8 +658,9 @@ int do_multicast(SOCKET *mc_socket, char *multicast_ip, char * msg) {
 	// 	fprintf(stderr, "[do_multicast] setsockopt() failed. (%d)\n", GETSOCKETERRNO());
 	// 	// handle error
 	// }
-	close(*mc_socket);
+	CLOSESOCKET(*mc_socket);
 	*mc_socket = join_multicast(multicast_ip, MULTICAST_PORT);
+	printf("[do_multicast] joined (%d)...\n", *mc_socket);
     freeaddrinfo(res); // free the linked list
     return 0;
 }
