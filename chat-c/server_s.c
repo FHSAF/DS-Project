@@ -145,7 +145,7 @@ int main()
 
         time(&end_t);
 		char msg1[12];
-		sprintf(msg1, "<%d>(OK)", connected_peers->ID);
+		sprintf(msg1, "%d", connected_peers->ID);
         if ((int)difftime(end_t, start_t) == 5)
         {
 			FD_CLR(mc_socket, &master);
@@ -644,7 +644,7 @@ int do_multicast(SOCKET *mc_socket, char *multicast_ip, char * msg) {
     // char message[32];
 	// sprintf(message, "%d:%s:%d", head->ID, head->addr, head->leader);
 
-    if (sendto(*mc_socket, msg, strlen(msg)+1, 0, res->ai_addr, res->ai_addrlen) == -1) {
+    if (sendto(*mc_socket, msg, strlen(msg), 0, res->ai_addr, res->ai_addrlen) == -1) {
         fprintf(stderr, "[do_multicast] sendto failed: %s\n", strerror(errno));
 		return (-1);
     }
@@ -675,8 +675,8 @@ SOCKET service_discovery(SOCKET *mc_socket, SOCKET tcp_socket, struct serverInfo
 	char address_buffer[100];
 	char service_buffer[100];
 
-    // for (int attempt = 0; attempt < 3; ++attempt)
-    // {
+    for (int attempt = 0; attempt < 10; ++attempt)
+    {
         printf("[service_discovery] broadcasting ID (%s), attempt...\n", msg);
         if (do_multicast(mc_socket, MULTICAST_IP, msg) == -1)
 			return (-1);
@@ -685,7 +685,7 @@ SOCKET service_discovery(SOCKET *mc_socket, SOCKET tcp_socket, struct serverInfo
         reads = master;
 
         struct timeval timeout;
-        timeout.tv_sec = 3; // Wait for 3 seconds
+        timeout.tv_sec = 5; // Wait for 3 seconds
         timeout.tv_usec = 0;
 
         int activity = select(socket_max + 1, &reads, NULL, NULL, &timeout);
@@ -764,7 +764,7 @@ SOCKET service_discovery(SOCKET *mc_socket, SOCKET tcp_socket, struct serverInfo
                 }
             }
         }
-    // }
+    }
 	return (-1);
 }
 
@@ -788,7 +788,9 @@ SOCKET handle_mcast_receive(SOCKET mc_socket, struct serverInfo * connected_peer
 	{
 		SOCKET ctcp_socket = peer_mcast_receive(connected_peers, buf, sender_addr);
 		if (ctcp_socket == -1)
-			return (-1);
+		{
+			fprintf(stderr, "[handle_mcast_receive] peer_mcast_receive() failed. (%d)\n", GETSOCKETERRNO());
+			return (-1);}
 		return (ctcp_socket);
 	} else if (sscanf(buf, "%d", &received_id) == 1) {
         int leaderId = connected_peers->next->ID; // Get the next peer
@@ -813,7 +815,10 @@ SOCKET peer_mcast_receive(struct serverInfo * connected_peers, char *buf, struct
 		sprintf(port, "%d", new_peer_port);
 		SOCKET ctcp_socket = setup_tcp_client(inet_ntoa(sender_addr.sin_addr), port);
 		if (ctcp_socket == -1)
+		{
+			fprintf(stderr, "[peer_mcast_receive] setup_tcp_client() failed. (%d)\n", GETSOCKETERRNO());
 			return (-1);
+		}
         char message[1024];
 		if (connected_peers->next != NULL)
         	snprintf(message, sizeof(message), "%d:%s:%d:%d", connected_peers->ID, connected_peers->next->addr, connected_peers->next->port, connected_peers->leader);
@@ -830,7 +835,11 @@ SOCKET peer_mcast_receive(struct serverInfo * connected_peers, char *buf, struct
     } else if (sscanf(buf, "%d", &new_peer_id) == 1) {
 		if (does_id_exist(new_peer_id, connected_peers) != 0)
 			printf("[peer_mcast_receive] peer ID (%d) <Ok>.\n", new_peer_id);
+		else
+			printf("[peer_mcast_receive] peer ID (%d) <Not Ok>.\n", new_peer_id);
 
+	} else {
+		printf("[peer_mcast_receive] Received: (%lu) bytes: %.*s\n", strlen(buf), (int)strlen(buf), buf);
 	}
    return (-1);
 }
