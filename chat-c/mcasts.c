@@ -29,8 +29,23 @@ int main() {
 	// Set up multicast address
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
-	addr.sin_addr.s_addr = inet_addr(MULTICAST_ADDR);
+	addr.sin_addr.s_addr = htonl(INADDR_ANY); // Receive multicast from any interface
 	addr.sin_port = htons(PORT);
+
+	// Bind the socket to the port
+	if (bind(sockfd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+		perror("bind");
+		exit(EXIT_FAILURE);
+	}
+
+	// Join the multicast group
+	struct ip_mreq mreq;
+	mreq.imr_multiaddr.s_addr = inet_addr(MULTICAST_ADDR); // Multicast address
+	mreq.imr_interface.s_addr = htonl(INADDR_ANY); // Any interface
+	if (setsockopt(sockfd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) < 0) {
+		perror("setsockopt");
+		exit(EXIT_FAILURE);
+	}
 
 	// Set up select timeout
 	timeout.tv_sec = 5;

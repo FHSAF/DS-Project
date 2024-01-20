@@ -13,7 +13,7 @@
 #define BROADCAST_ADDRESS "192.168.0.255"
 #define BROADCAST_PORT "3938"
 #define MULTICAST_IP "239.10.0.1"
-#define MULTICAST_PORT "8082"
+#define MULTICAST_PORT "12345"
 
 typedef struct serverInfo {
     int ID;
