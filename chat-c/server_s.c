@@ -670,12 +670,12 @@ SOCKET service_discovery(SOCKET *mc_socket, SOCKET tcp_socket, struct serverInfo
     SOCKET socket_max = tcp_socket;
 
     char msg[32];
-    sprintf(msg, "%d:%d", head->ID, head->port);
+    sprintf(msg, "%d:%d", head->ID, 4041);
 	SOCKET socket_client;
 	char address_buffer[100];
 	char service_buffer[100];
 
-    for (int attempt = 0; attempt < 10; ++attempt)
+    for (int attempt = 0; attempt < 3; ++attempt)
     {
         printf("[service_discovery] broadcasting ID (%s), attempt...\n", msg);
         if (do_multicast(mc_socket, MULTICAST_IP, msg) == -1)
@@ -685,7 +685,7 @@ SOCKET service_discovery(SOCKET *mc_socket, SOCKET tcp_socket, struct serverInfo
         reads = master;
 
         struct timeval timeout;
-        timeout.tv_sec = 5; // Wait for 3 seconds
+        timeout.tv_sec = 3; // Wait for 3 seconds
         timeout.tv_usec = 0;
 
         int activity = select(socket_max + 1, &reads, NULL, NULL, &timeout);
@@ -704,10 +704,11 @@ SOCKET service_discovery(SOCKET *mc_socket, SOCKET tcp_socket, struct serverInfo
 
 						struct sockaddr_storage client_address;
 						socklen_t client_len = sizeof(client_address);
+
 						socket_client = accept(tcp_socket, (struct sockaddr*)&client_address, &client_len);
 						if (!ISVALIDSOCKET(socket_client))
 						{
-							fprintf(stderr, "accept() failed. (%d)\n", GETSOCKETERRNO());
+							fprintf(stderr, "[service_discover] accept() failed. (%d)\n", GETSOCKETERRNO());
 							return (1);
 						}
 						FD_SET(socket_client, &master);
@@ -735,7 +736,7 @@ SOCKET service_discovery(SOCKET *mc_socket, SOCKET tcp_socket, struct serverInfo
 							{
 								printf("[service_discovery] Leader found.\n");
 								append_server(&head, ID, (void *)address_buffer, head->port, leader, socket_client);
-								if (strlen(successorIP) < 7)
+								if (strlen(successorIP) >= 8)
 								{
 									char port[6];
 									sprintf(port, "%d", mPORT);
@@ -756,10 +757,6 @@ SOCKET service_discovery(SOCKET *mc_socket, SOCKET tcp_socket, struct serverInfo
 							CLOSESOCKET(socket_client);
 							continue;
 						}
-					} else {
-						FD_CLR(socket_client, &master);
-						CLOSESOCKET(socket_client);
-						continue;
 					}
                 }
             }
@@ -823,7 +820,7 @@ SOCKET peer_mcast_receive(struct serverInfo * connected_peers, char *buf, struct
 		if (connected_peers->next != NULL)
         	snprintf(message, sizeof(message), "%d:%s:%d:%d", connected_peers->ID, connected_peers->next->addr, connected_peers->next->port, connected_peers->leader);
 		else
-			snprintf(message, sizeof(message), "%d:%s:%d:%d", connected_peers->ID, "0", '0', connected_peers->leader);
+			snprintf(message, sizeof(message), "%d:%s:%d:%d", connected_peers->ID, "0.0.0.0", '0', connected_peers->leader);
 		// add the new peer to the list
 		
         if (send(ctcp_socket, message, strlen(message), 0) == -1) {
