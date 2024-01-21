@@ -23,7 +23,7 @@ SOCKET error_return = -1;
 
 typedef struct serverInfo {
     int ID;
-    char *addr;
+    char addr[16];
     int port;
 	int leader;
 	SOCKET tcp_socket;
@@ -40,11 +40,11 @@ void udp_broadcast(char *msg, SOCKET udp_sockfd);
 void handle_udp_recieve(ServerInfo *connected_peers, int leader, SOCKET udp_socket);
 SOCKET join_multicast(char *multicast_ip, char * mPORT);
 SOCKET do_multicast(SOCKET *mc_socket, char *multicast_ip, char * msg);
-SOCKET service_discovery(SOCKET *mc_socket, SOCKET tcp_socket, struct serverInfo *head);
+SOCKET service_discovery(SOCKET *mc_socket, SOCKET *successor_socket, SOCKET tcp_socket, struct serverInfo *head);
 SOCKET handle_mcast_receive(SOCKET mc_socket, struct serverInfo * connected_peers);
 SOCKET peer_mcast_receive(struct serverInfo * connected_peers, char *buf, struct sockaddr_in sender_addr);
 SOCKET setup_tcp_client(char *address, char *port);
-void handle_disconnection(struct serverInfo * head, SOCKET i, SOCKET udp_socket, SOCKET mc_socket, SOCKET ltcp_socket);
+void handle_disconnection(struct serverInfo * head, SOCKET i, SOCKET udp_socket, SOCKET mc_socket, SOCKET ltcp_socket, SOCKET successor_socket);
 
 // Data structure of servers to keep
 int server_info_exist(int id, struct serverInfo *head);
@@ -113,16 +113,20 @@ int main()
 
 	// mc_socket the socket receiving multicast messages
 	SOCKET mc_socket = join_multicast(MULTICAST_IP, MULTICAST_PORT);
+	SOCKET successor_socket = error_return;
 	
 	if (!ISVALIDSOCKET(mc_socket))
 		return (1);
 	
-	ltcp_socket = service_discovery(&mc_socket, socket_listen, connected_peers);
+	ltcp_socket = service_discovery(&mc_socket, &successor_socket, socket_listen, connected_peers);
 	if (ISVALIDSOCKET(ltcp_socket)) {
 		
 		FD_SET(ltcp_socket, &master);
+		FD_SET(successor_socket, &master);
 		if (ltcp_socket > socket_max)
 			socket_max = ltcp_socket;
+		if (successor_socket > socket_max)
+			socket_max = successor_socket;
 		connected_peers->leader = 0;
 	} else {
 		printf("[main] I am the leader.\n");
@@ -204,7 +208,7 @@ int main()
 					int byte_received = recv(i, read, 4096, 0);
 					if (byte_received < 1)
 					{
-						handle_disconnection(connected_peers, i, udp_socket, mc_socket, ltcp_socket);
+						handle_disconnection(connected_peers, i, udp_socket, mc_socket, ltcp_socket, successor_socket);
 						FD_CLR(i, &master);
 						CLOSESOCKET(i);
 						continue;
@@ -508,7 +512,7 @@ struct serverInfo * create_server(int id, void *address, int port, int leader, S
 		printf("Memory allocation failed\n");
 		exit(1);
 	}
-	server_info->addr = address;
+	memcpy(server_info->addr, address, sizeof(server_info->addr));
 	server_info->ID = id;
 	server_info->port = port;
 	server_info->leader = leader;
@@ -667,7 +671,7 @@ SOCKET do_multicast(SOCKET *mc_socket, char *multicast_ip, char * msg) {
     return 0;
 }
 
-SOCKET service_discovery(SOCKET *mc_socket, SOCKET tcp_socket, struct serverInfo *head)
+SOCKET service_discovery(SOCKET *mc_socket, SOCKET *successor_socket, SOCKET tcp_socket, struct serverInfo *head)
 {
 	fd_set master;
     FD_ZERO(&master);
@@ -691,7 +695,7 @@ SOCKET service_discovery(SOCKET *mc_socket, SOCKET tcp_socket, struct serverInfo
 		if ((int)difftime(end_t, start_t) == 3){
 			printf("[service_discovery] broadcasting ID (%s), attempt...\n", msg);
 			if (do_multicast(mc_socket, MULTICAST_IP, msg) == -1)
-				return (-1);
+				return (error_return);
 			time(&start_t);
 		}
 
@@ -706,7 +710,7 @@ SOCKET service_discovery(SOCKET *mc_socket, SOCKET tcp_socket, struct serverInfo
 
         if (activity == -1) {
             fprintf(stderr, "[service_discovery] select() failed. (%d)\n", GETSOCKETERRNO());
-			return (-1);
+			return (error_return);
         } else if (activity == 0) {
             printf("[service_discovery] No response received within 3 seconds.\n");
         } else {
@@ -722,7 +726,7 @@ SOCKET service_discovery(SOCKET *mc_socket, SOCKET tcp_socket, struct serverInfo
 						if (!ISVALIDSOCKET(socket_client))
 						{
 							fprintf(stderr, "[service_discover] accept() failed. (%d)\n", GETSOCKETERRNO());
-							return (-1);
+							return (error_return);
 						}
 						FD_SET(socket_client, &master);
 						if (socket_client > socket_max)
@@ -739,7 +743,7 @@ SOCKET service_discovery(SOCKET *mc_socket, SOCKET tcp_socket, struct serverInfo
 						if (numBytes == -1)
 						{
 							fprintf(stderr, "[service_discovery] recv() failed. (%d)\n", GETSOCKETERRNO());
-							return (-1);
+							return (error_return);
 						}
 						int ID, IDs, mPORT;
 						char successorIP[16];
@@ -753,8 +757,12 @@ SOCKET service_discovery(SOCKET *mc_socket, SOCKET tcp_socket, struct serverInfo
 								char port[6];
 								sprintf(port, "%d", mPORT);
 								SOCKET socket_successor = setup_tcp_client(successorIP, port);
-								if (socket_successor == -1)
-									return (-1);
+								if (socket_successor == -1){
+									fprintf(stderr, "[service_discovery] setup_tcp_client() failed. (%d)\n", GETSOCKETERRNO());
+									CLOSESOCKET(socket_client);
+									return (error_return);
+								}
+								*successor_socket = socket_successor;
 								append_server(&head, IDs, (void *)successorIP, mPORT, 0, socket_successor);
 							}
 
@@ -769,7 +777,7 @@ SOCKET service_discovery(SOCKET *mc_socket, SOCKET tcp_socket, struct serverInfo
             }
         }
     }
-	return (-1);
+	return (error_return);
 }
 
 
@@ -830,7 +838,6 @@ SOCKET peer_mcast_receive(struct serverInfo * connected_peers, char *buf, struct
         	snprintf(message, sizeof(message), "%d:%s:%d:%d", connected_peers->ID, connected_peers->next->addr, connected_peers->next->port, connected_peers->next->ID);
 		else
 			snprintf(message, sizeof(message), "%d:%s:%d:%d", connected_peers->ID, "0.0.0.0", '0', connected_peers->leader);
-		// add the new peer to the list
 		
         if (send(ctcp_socket, message, strlen(message), 0) == -1) {
 			fprintf(stderr, "[peer_mcast_receive] send() failed. (%d)\n", GETSOCKETERRNO());
@@ -907,7 +914,7 @@ int ist_peer_server(int sockfd, struct serverInfo *head) {
     return (0);
 }
 
-void handle_disconnection(struct serverInfo * head, SOCKET i, SOCKET udp_socket, SOCKET mc_socket, SOCKET ltcp_socket)
+void handle_disconnection(struct serverInfo * head, SOCKET i, SOCKET udp_socket, SOCKET mc_socket, SOCKET ltcp_socket, SOCKET successor_socket)
 {
 	if (i == udp_socket) {
 		printf("[handle_disconnection] udp_client disconnect...\n");
@@ -917,6 +924,9 @@ void handle_disconnection(struct serverInfo * head, SOCKET i, SOCKET udp_socket,
 		printf("[handle_disconnection] leader disconnected...\n");
 		printf("[handle_disconnection] Leader election required...\n");
 		head->leader = 1;
+		delete_server(head, i);
+	} else if (i == successor_socket) {
+		printf("[handle_disconnection] successor disconnected...\n");
 		delete_server(head, i);
 	} else if(ist_peer_server(i, head) != 0) {
 		printf("[handle_disconnection] Peer (%d) disconnected...\n", ist_peer_server(i, head));
