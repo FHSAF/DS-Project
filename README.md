@@ -1,1 +1,3 @@
-# Distributed Chat System
+# Distributed System Project
+## Real-time chat application
+
