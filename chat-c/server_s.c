@@ -228,7 +228,7 @@ int main()
 						printf("[main] read on ltcpsocket...\n");
 						int sID, sPORT;
 						char sIP[16];
-						if (sscanf(read, "%d:%15[^:]:%d:%d", &sID, sIP, &sPORT) == 3)
+						if (sscanf(read, "%d:%15[^:]:%d", &sID, sIP, &sPORT) == 3)
 						{
 							SOCKET new_successor_socket = setup_tcp_client(sIP, PORT);
 							if (!(ISVALIDSOCKET(new_successor_socket))){
