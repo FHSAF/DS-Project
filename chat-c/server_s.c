@@ -122,11 +122,13 @@ int main()
 	if (ISVALIDSOCKET(ltcp_socket)) {
 		
 		FD_SET(ltcp_socket, &master);
-		FD_SET(successor_socket, &master);
 		if (ltcp_socket > socket_max)
 			socket_max = ltcp_socket;
-		if (successor_socket > socket_max)
-			socket_max = successor_socket;
+		if (successor_socket != error_return) {
+			FD_SET(successor_socket, &master);
+			if (successor_socket > socket_max)
+				socket_max = successor_socket;
+		}
 		connected_peers->leader = 0;
 	} else {
 		printf("[main] I am the leader.\n");
