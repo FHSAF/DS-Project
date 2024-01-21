@@ -207,8 +207,8 @@ int main()
 							socket_max = peer_socket;
 					}
 				} else {
-					char read[4096];
-					int byte_received = recv(i, read, 4096, 0);
+					char read[1024];
+					int byte_received = recv(i, read, 1024, 0);
 					if (byte_received < 1)
 					{
 						handle_disconnection(connected_peers, i, udp_socket, mc_socket, ltcp_socket, successor_socket);
@@ -271,17 +271,19 @@ int main()
 							printf("Client not found (%d).\n", dest_id);
 						}
 					} else {
+						printf("[main] read on socket (%d) %s...\n", i, read);
+						continue;
 
-						SOCKET j;
-						for (j = 1; j <= socket_max; ++j)
-						{
-							if (FD_ISSET(j, &master)) {
-								if (j == socket_listen || j == i)
-									continue;
-								else
-									send(j, read, byte_received, 0);
-							}
-						}
+						// SOCKET j;
+						// for (j = 1; j <= socket_max; ++j)
+						// {
+						// 	if (FD_ISSET(j, &master)) {
+						// 		if (j == socket_listen || j == i)
+						// 			continue;
+						// 		else
+						// 			send(j, read, byte_received, 0);
+						// 	}
+						// }
 					}
 				}
 			}
