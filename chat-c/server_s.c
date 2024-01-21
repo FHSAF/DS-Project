@@ -45,6 +45,7 @@ SOCKET handle_mcast_receive(SOCKET mc_socket, struct serverInfo * connected_peer
 SOCKET peer_mcast_receive(struct serverInfo * connected_peers, char *buf, struct sockaddr_in sender_addr);
 SOCKET setup_tcp_client(char *address, char *port);
 void handle_disconnection(struct serverInfo * head, SOCKET i, SOCKET udp_socket, SOCKET mc_socket, SOCKET ltcp_socket, SOCKET successor_socket);
+SOCKET get_last_peer_socket(struct serverInfo *head);
 
 // Data structure of servers to keep
 int server_info_exist(int id, struct serverInfo *head);
@@ -223,8 +224,32 @@ int main()
 					int dest_id;
 					char message[4096];
 					read[byte_received] = '\0';
-				
-					if (sscanf(read, "%d %[^\n]", &dest_id, message) == 2)
+					if (i == ltcp_socket){
+						printf("[main] read on ltcpsocket...\n");
+						int sID, sPORT;
+						char sIP[16];
+						if (sscanf(read, "%d:%15[^:]:%d:%d", &sID, sIP, &sPORT) == 3)
+						{
+							SOCKET new_successor_socket = setup_tcp_client(sIP, PORT);
+							if (!(ISVALIDSOCKET(new_successor_socket))){
+								fprintf(stderr, "[main] setup_tcp_client() for new successor failed. (%d)\n", GETSOCKETERRNO());
+								return (1);
+							}
+							if (successor_socket != error_return)
+							{
+								delete_server(connected_peers, successor_socket);
+								append_server(&connected_peers, sID, (void *)sIP, sPORT, 0, new_successor_socket);
+								FD_CLR(successor_socket, &master);
+								CLOSESOCKET(successor_socket);
+							} else {
+								append_server(&connected_peers, sID, (void *)sIP, sPORT, 0, new_successor_socket);
+							}
+							successor_socket = new_successor_socket;
+							FD_SET(successor_socket, &master);
+							if (successor_socket > socket_max)
+								socket_max = successor_socket;
+						}
+					} else if (sscanf(read, "%d %[^\n]", &dest_id, message) == 2)
 					{
 						printf("message (%s) (%lu), (%d)\n", read, sizeof(read), byte_received);
 						struct ClientInfo *dest_client = NULL;
@@ -565,13 +590,13 @@ int delete_server(struct serverInfo *head, SOCKET tcp_socket)
 void display_server(struct serverInfo *head)
 {
 	struct serverInfo *current = head;
-	printf("\n=================Servers I know=================\n");
+	printf("\n\t==================== Servers I know ====================\n");
 	while (current != NULL)
 	{
 		printf("\tID: %d, IP: %s:%d, Leader: %d, Socket: %d\n", current->ID, current->addr, current->port, current->leader, current->tcp_socket);
 		current = current->next;
 	}
-	printf("=================Servers I know=================\n\n");
+	printf("\t==================== Servers I know ====================\n\n");
 }
 
 void free_server_storage(struct serverInfo *head)
@@ -845,6 +870,15 @@ SOCKET peer_mcast_receive(struct serverInfo * connected_peers, char *buf, struct
 			fprintf(stderr, "[peer_mcast_receive] send() failed. (%d)\n", GETSOCKETERRNO());
 			return (error_return);
 		}
+		// send the new peer ip, id, port to the last peer
+		if (connected_peers->next){
+			snprintf(message, sizeof(message), "%d:%s:%d", new_peer_id, inet_ntoa(sender_addr.sin_addr), new_peer_port);
+			SOCKET last_peer_socket = get_last_peer_socket(connected_peers);
+			if (send(last_peer_socket, message, strlen(message), 0) == -1) {
+				fprintf(stderr, "[peer_mcast_receive] send() to last peer failed. (%d)\n", GETSOCKETERRNO());
+				return (error_return);
+			}
+		}
 		append_server(&connected_peers, new_peer_id, (void *)inet_ntoa(sender_addr.sin_addr), new_peer_port, 0, ctcp_socket);
         return (ctcp_socket);
     } else if (sscanf(buf, "%d", &new_peer_id) == 1) {
@@ -950,4 +984,12 @@ void handle_disconnection(struct serverInfo * head, SOCKET i, SOCKET udp_socket,
 			}
 		}
 	}
+}
+
+SOCKET get_last_peer_socket(struct serverInfo *head)
+{
+	struct serverInfo * current = head;
+	while (current->next != NULL)
+		current = current->next;
+	return (current->tcp_socket);
 }
