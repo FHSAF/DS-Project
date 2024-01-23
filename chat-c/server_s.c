@@ -43,7 +43,7 @@ int main()
         return(1);
 
     struct serverInfo *connected_peers = NULL;
-	append_server(&connected_peers, getRadomId(10000, 1000000), (void *)SERVER_IP, atoi(PORT), leader, socket_listen);
+	append_server(&connected_peers, getRadomId(1, 10000), (void *)SERVER_IP, atoi(PORT), leader, socket_listen);
 
 	printf("[main] setting up select...\n");
 	FD_ZERO(&master);
