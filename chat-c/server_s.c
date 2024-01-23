@@ -493,6 +493,7 @@ SOCKET join_multicast(char *multicast_ip, char * mPORT)
         fprintf(stderr, "[join_multicast] bind() failed. (%d)\n", GETSOCKETERRNO());
         return (error_return);
     }
+
     struct ip_mreq mreq;
     mreq.imr_multiaddr.s_addr = inet_addr(multicast_ip);
     mreq.imr_interface.s_addr = htonl(INADDR_ANY);
@@ -818,8 +819,10 @@ void handle_disconnection(struct serverInfo * head, SOCKET i, SOCKET udp_socket,
 		delete_server(head, head->next->next->ID);
 	} else if(ist_peer_server(i, head) != NULL) {
 		ServerInfo *pred_i = ist_peer_server(i, head);
-		printf("[handle_disconnection] Peer (%d) disconnected...\n", pred_i->ID);
-		delete_server(head, pred_i->ID);
+		printf("[handle_disconnection] Peer (%d) disconnected...\n", pred_i->next->ID);
+		delete_server(head, pred_i->next->ID);
+		if (pred_i == head)
+			return;
 		if (update_ring(pred_i)==-1) {
 			printf("[handle_disconnection] update_ring() failed.\n");
 			exit(1);

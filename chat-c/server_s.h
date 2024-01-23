@@ -88,7 +88,7 @@ void handle_disconnection(struct serverInfo * head, SOCKET i, SOCKET udp_socket,
 SOCKET get_last_peer_socket(struct serverInfo *head);
 void append_server_sorted(struct serverInfo **head, int id, void *address, int port, int leader, SOCKET tcp_socket);
 void send_ele_msg(ServerInfo *head, SOCKET mc_socket);
-SOCKET get_pred_socket(int id, struct serverInfo *head);
+SOCKET get_pred_socket(SOCKET id, struct serverInfo *head);
 ServerInfo * get_successor(int id, struct serverInfo *head);
 int update_ring(struct serverInfo *head);
 

@@ -132,17 +132,17 @@ ServerInfo * ist_peer_server(int sockfd, struct serverInfo *head) {
     struct serverInfo *current = head;
     while (current->next != NULL) {
         if (current->next->tcp_socket == sockfd) {
-            return (current->next); 
+            return (current); 
         }
         current = current->next;
     }
     return (NULL);
 }
 
-SOCKET get_pred_socket(int id, struct serverInfo *head)
+SOCKET get_pred_socket(SOCKET id, struct serverInfo *head)
 {
 	struct serverInfo * current = head;
-	
+	current = current->next;
 	while (current->next != NULL){
 		if (current->next->ID > id)
 			return (current->tcp_socket);
