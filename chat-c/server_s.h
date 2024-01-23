@@ -46,13 +46,20 @@
 #define PORT "4041"
 #define MAX_CONNECTION 10
 #define BUFFER_SIZE 4096
-#define SERVER_IP "192.168.0.101"
+#define SERVER_IP "192.168.0.100"
 #define NEXT_SERVER_IP "127.0.0.1"
 #define NEXT_SERVER_PORT "6970"
 #define BROADCAST_ADDRESS "192.168.0.255"
 #define BROADCAST_PORT "3938"
 #define MULTICAST_IP "239.255.255.250"
 #define MULTICAST_PORT "12345"
+
+typedef struct groupInfo {
+	int id;
+	char name[20];
+	struct ClientInfo *members;
+	struct groupInfo *next;
+} GroupInfo;
 
 typedef struct serverInfo {
     int ID;
@@ -63,12 +70,13 @@ typedef struct serverInfo {
 	struct serverInfo *next;
 } ServerInfo;
 
-struct ClientInfo {
+typedef struct ClientInfo {
 	int id;
 	SOCKET socket;
 	void *addr;
 	struct sockaddr_storage address;
-};
+} clientInfo;
+
 
 void send_server_info(SOCKET dest, ServerInfo *myInfo);
 SOCKET setup_tcp_socket();
@@ -91,6 +99,8 @@ void send_ele_msg(ServerInfo *head, SOCKET mc_socket);
 SOCKET get_pred_socket(int id, struct serverInfo *head);
 ServerInfo * get_successor(int id, struct serverInfo *head);
 int update_ring(struct serverInfo *head);
+int message_to_group(SOCKET sender_socket, int group_id, char *msg, struct serverInfo *head);
+int get_client_id(SOCKET socket);
 
 
 // Data structure of servers to keep

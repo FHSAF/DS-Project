@@ -5,10 +5,11 @@ SOCKET error_return = INVALID_SOCKET;
 #else
 SOCKET error_return = -1;
 #endif
-
+int GROUP_ID;
 
 struct ClientInfo clients[MAX_CONNECTION];
 struct ClientInfo *tempClient;
+
 int client_count = 0;
 
 int getRadomId(int min, int max) {
@@ -34,20 +35,22 @@ int main()
 	SOCKET socket_max;
 	SOCKET ltcp_socket;
 	fd_set master;
+	GROUP_ID = getRadomId(20000, 1000000);
+	printf("[main] Group ID (%d).\n", GROUP_ID);
 
     SOCKET socket_listen = setup_tcp_socket();
     if (!ISVALIDSOCKET(socket_listen))
         return(1);
 
     struct serverInfo *connected_peers = NULL;
-	append_server(&connected_peers, getRadomId(1000, 100000), (void *)SERVER_IP, atoi(PORT), leader, socket_listen);
+	append_server(&connected_peers, getRadomId(10000, 1000000), (void *)SERVER_IP, atoi(PORT), leader, socket_listen);
 
 	printf("[main] setting up select...\n");
 	FD_ZERO(&master);
 	FD_SET(socket_listen, &master);
 	socket_max = socket_listen;
 
-	SOCKET udp_socket = -100; //setup_udp_socket(NULL, BROADCAST_PORT);
+	SOCKET udp_socket = error_return; //setup_udp_socket(NULL, BROADCAST_PORT);
 	// if (udp_socket!=-1)
 	// {
 	// 	FD_SET(udp_socket, &master);
@@ -92,7 +95,7 @@ int main()
 
         struct timeval timeout;
         timeout.tv_sec = 0;
-        timeout.tv_usec = 100000;
+        timeout.tv_usec = 10000;
 		if (select(socket_max + 1, &reads, 0, 0, &timeout) < 0)
 		{
 			fprintf(stderr, "[main] select() failed. (%d)\n", GETSOCKETERRNO());
@@ -200,6 +203,12 @@ int main()
 							printf("message (%s) (%lu), (%d)\n", read, sizeof(read), byte_received);
 						#endif
 						struct ClientInfo *dest_client = NULL;
+						// check if the dest_id is group id
+						if ((dest_id > 20000) && (dest_id < 1000000))
+						{
+							message_to_group(i, dest_id, message, connected_peers);
+							continue;
+						}
 						for (int ci = 0; ci < client_count; ++ci)
 						{
 							if (clients[ci].id == dest_id)
@@ -262,7 +271,7 @@ void assign_client_info(SOCKET socket_client, struct sockaddr_storage client_add
 		CLOSESOCKET(socket_client);
 		return;
 	}
-	int client_id = getRadomId(10, 1000)*(++client_count);
+	int client_id = getRadomId(2000000, 10000000)*(++client_count);
 	struct ClientInfo *client_info = (struct ClientInfo *)malloc(sizeof(struct ClientInfo));
 	if (client_info == NULL)
 	{
@@ -867,4 +876,42 @@ int update_ring(struct serverInfo *head)
 		}
 	}
 	return (0);
+}
+
+int message_to_group(SOCKET sender_socket, int group_id, char *msg, struct serverInfo *head)
+{
+
+	if (group_id == GROUP_ID)
+	{
+		printf("[message_to_group] group (%d) found locally.\n", group_id);
+		char message[1024];
+		int sender_id = get_client_id(sender_socket);
+		sprintf(message, "%d:%s", sender_id, msg);
+		for (int ci = 0; ci < client_count; ++ci)
+		{
+			if (clients[ci].id != sender_id)
+			{
+				int bytes_sent = send(clients[ci].socket, message, strlen(message), 0);
+				printf("[message_to_group] Sent %d bytes to (%d)\n", bytes_sent, clients[ci].id);
+			}
+		}
+		return (1);
+	} else {
+		// Handle if group is not found in self server
+		printf("[message_to_group] group (%d) (%d)not found locally.\n", group_id, GROUP_ID);
+		// TODO: forward to successor
+		return (1);
+	}
+	
+	return (1);
+}
+
+int get_client_id(SOCKET socket)
+{
+	for (int ci = 0; ci < client_count; ++ci)
+	{
+		if (clients[ci].socket == socket)
+			return (clients[ci].id);
+	}
+	return (-1);
 }
