@@ -719,8 +719,10 @@ SOCKET peer_mcast_receive(struct serverInfo * connected_peers, char *buf, struct
 		}
         char message[1024];
 		if (connected_peers->next)
-        	snprintf(message, sizeof(message), "%d:%s:%d:%d", connected_peers->ID, connected_peers->next->addr, connected_peers->next->port, connected_peers->next->ID);
-		else
+		{
+			ServerInfo *successor = get_successor(new_peer_id, connected_peers);
+			sprintf(message, "%d:%s:%d:%d", connected_peers->ID, successor->addr, successor->port, successor->ID);
+		}else
 			snprintf(message, sizeof(message), "%d:%s:%d:%d", connected_peers->ID, "0.0.0.0", '0', connected_peers->leader);
 		
         if (send(ctcp_socket, message, strlen(message), 0) == -1) {
@@ -730,13 +732,14 @@ SOCKET peer_mcast_receive(struct serverInfo * connected_peers, char *buf, struct
 		// send the new peer ip, id, port to the last peer
 		if (connected_peers->next){
 			snprintf(message, sizeof(message), "%d:%s:%d", new_peer_id, inet_ntoa(sender_addr.sin_addr), new_peer_port);
-			SOCKET last_peer_socket = get_last_peer_socket(connected_peers);
-			if (send(last_peer_socket, message, strlen(message), 0) == -1) {
+			// SOCKET last_peer_socket = get_last_peer_socket(connected_peers);
+			SOCKET pred_socket = get_pred_socket(new_peer_id, connected_peers);
+			if (send(pred_socket, message, strlen(message), 0) == -1) {
 				fprintf(stderr, "[peer_mcast_receive] send() to last peer failed. (%d)\n", GETSOCKETERRNO());
 				return (error_return);
 			}
 		}
-		append_server(&connected_peers, new_peer_id, (void *)inet_ntoa(sender_addr.sin_addr), new_peer_port, 0, ctcp_socket);
+		append_server_sorted(&connected_peers, new_peer_id, (void *)inet_ntoa(sender_addr.sin_addr), new_peer_port, 0, ctcp_socket);
         return (ctcp_socket);
     } else if (sscanf(buf, "%d", &new_peer_id) == 1) {
 		if (server_info_exist(new_peer_id, connected_peers) != 0)
@@ -814,9 +817,13 @@ void handle_disconnection(struct serverInfo * head, SOCKET i, SOCKET udp_socket,
 		printf("[handle_disconnection] successor disconnected...\n");
 		delete_server(head, head->next->next->ID);
 	} else if(ist_peer_server(i, head) != 0) {
-		int peer_id = ist_peer_server(i, head);
-		printf("[handle_disconnection] Peer (%d) disconnected...\n", peer_id);
-		delete_server(head, peer_id);
+		ServerInfo *pred_i = ist_peer_server(i, head);
+		if (update_ring(pred_i)==-1) {
+			printf("[handle_disconnection] update_ring() failed.\n");
+			exit(1);
+		}
+		printf("[handle_disconnection] Peer (%d) disconnected...\n", pred_i->next->ID);
+		delete_server(head, pred_i->next->ID);
 	} else {
 		for (int ci = 0; ci <= client_count; ++ci)
 		{
@@ -841,4 +848,16 @@ void send_ele_msg(struct serverInfo *head, SOCKET next_socket)
 	char msg[32];
 	sprintf(msg, "%s:%d", "ELECTION", head->ID);
 	send(next_socket, msg, strlen(msg), 0);
+}
+
+int update_ring(struct serverInfo *head)
+{
+	char update[1024];
+	snprintf(update, sizeof(update), "%d:%s:%d", head->next->next->ID, head->next->next->addr, head->next->next->port);
+	if (send(head->tcp_socket, update, strlen(update), 0) == -1)
+	{
+		fprintf(stderr, "[update_ring] send() failed. (%d)\n", GETSOCKETERRNO());
+		return (-1);
+	}
+	return (0);
 }

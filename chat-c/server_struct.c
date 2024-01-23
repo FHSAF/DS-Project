@@ -104,14 +104,14 @@ void append_server_sorted(struct serverInfo **head, int id, void *address, int p
 	else{
 		struct serverInfo * current = *head;
 		struct serverInfo * temp = NULL;
-		if (current->ID < id)
-		{
-			new_server->next = current;
-			*head = new_server;
-		}
+		// if (current->ID < id)
+		// {
+		// 	new_server->next = current;
+		// 	*head = new_server;
+		// }
 		while (current->next != NULL)
 		{
-			if (current->next->ID < id)
+			if (current->next->ID > id)
 			{
 				temp = current->next;
 				current->next = new_server;
@@ -126,17 +126,30 @@ void append_server_sorted(struct serverInfo **head, int id, void *address, int p
 	display_server(*head);
 }
 
-int ist_peer_server(int sockfd, struct serverInfo *head) {
+ServerInfo * ist_peer_server(int sockfd, struct serverInfo *head) {
 	if (head->leader != 1)
 		return (0);
     struct serverInfo *current = head;
-    while (current != NULL) {
-        if (current->tcp_socket == sockfd) {
-            return (current->ID); 
+    while (current->next != NULL) {
+        if (current->next->tcp_socket == sockfd) {
+            return (current->next); 
         }
         current = current->next;
     }
-    return (0);
+    return (NULL);
+}
+
+SOCKET get_pred_socket(int id, struct serverInfo *head)
+{
+	struct serverInfo * current = head;
+	
+	while (current->next != NULL){
+		if (current->next->ID > id)
+			return (current->tcp_socket);
+		else
+			current = current->next;
+	}
+	return (current->next->tcp_socket);
 }
 
 SOCKET get_last_peer_socket(struct serverInfo *head)
@@ -145,4 +158,16 @@ SOCKET get_last_peer_socket(struct serverInfo *head)
 	while (current->next != NULL)
 		current = current->next;
 	return (current->tcp_socket);
+}
+
+ServerInfo * get_successor(int id, struct serverInfo *head)
+{
+	struct serverInfo * current = head;
+	while (current->next != NULL){
+		if (current->next->ID > id)
+			return (current->next);
+		else
+			current = current->next;
+	}
+	return (head->next);
 }
