@@ -11,6 +11,7 @@ struct ClientInfo clients[MAX_CONNECTION];
 struct ClientInfo *tempClient;
 
 int client_count = 0;
+int participant = 0;
 
 int getRadomId(int min, int max) {
 
@@ -168,7 +169,9 @@ int main()
 						continue;
 					}
 					int dest_id;
-					char message[4096];
+					char message[2048];
+					char keyword[10];
+					int pred_id;
 					read[byte_received] = '\0';
 					if (i == ltcp_socket){
 						printf("[main] read on ltcpsocket...\n");
@@ -226,6 +229,8 @@ int main()
 						} else {
 							printf("Client not found (%d).\n", dest_id);
 						}
+					} else if (sscanf(read, "%9[^:]:%d", keyword, &pred_id) == 2) {
+						lcr_election(keyword, pred_id, connected_peers, i);
 					} else {
 						printf("[main] read on socket (%d) %s...\n", i, read);
 						continue;
@@ -264,7 +269,17 @@ int main()
 
 void assign_client_info(SOCKET socket_client, struct sockaddr_storage client_address, int temp)
 {
-	
+	socklen_t addr_len = sizeof(client_address);
+	char client_ip[NI_MAXHOST];
+
+	int res = getnameinfo((struct sockaddr*)&client_address, addr_len, client_ip, sizeof(client_ip), NULL, 0, NI_NUMERICHOST);
+	if (res != 0) {
+		fprintf(stderr, "getnameinfo: %s\n", gai_strerror(res));
+		return;
+	}
+
+	printf("Peer IP address: %s\n", client_ip);
+
 	if (client_count == MAX_CONNECTION)
 	{
 		printf("Client limit reached. Rejecting client.\n");
@@ -281,8 +296,8 @@ void assign_client_info(SOCKET socket_client, struct sockaddr_storage client_add
 	printf("Client id is (%d).\n", client_id);
 	client_info->id = client_id;
 	client_info->socket = socket_client;
-	client_info->address = client_address;
 	client_info->addr = client_info;
+	memcpy(client_info->ip_addr, client_ip, sizeof(client_info->ip_addr));
 	if (temp == 0)
 	{
 		clients[client_count - 1] = *client_info;
@@ -820,9 +835,9 @@ void handle_disconnection(struct serverInfo * head, SOCKET i, SOCKET udp_socket,
 	} else if (i == ltcp_socket) {
 		printf("[handle_disconnection] leader disconnected...\n");
 		printf("[handle_disconnection] Leader election required...\n");
-		head->leader = 1;
-		delete_server(head, head->next->ID);
-		send_ele_msg(head, mc_socket);
+		// head->leader = 1;
+		// delete_server(head, head->next->ID);
+		send_ele_msg(head);
 	} else if (i == successor_socket) {
 		printf("[handle_disconnection] successor disconnected...\n");
 		delete_server(head, head->next->next->ID);
@@ -855,11 +870,22 @@ void handle_disconnection(struct serverInfo * head, SOCKET i, SOCKET udp_socket,
 	}
 }
 
-void send_ele_msg(struct serverInfo *head, SOCKET next_socket)
+void send_ele_msg(struct serverInfo *head)
 {
+	if (head->next->next == NULL)
+	{
+		printf("[send_ele_msg] No successor found I'm the leader.\n");
+		head->leader = 1;
+		delete_server(head, head->next->ID);
+		return;
+	}
 	char msg[32];
 	sprintf(msg, "%s:%d", "ELECTION", head->ID);
-	send(next_socket, msg, strlen(msg), 0);
+	if (send(head->next->next->tcp_socket, msg, strlen(msg), 0) == -1)
+	{
+		fprintf(stderr, "[send_ele_msg] send() failed. (%d)\n", GETSOCKETERRNO());
+		return;
+	}
 }
 
 int update_ring(struct serverInfo *head)
@@ -914,4 +940,66 @@ int get_client_id(SOCKET socket)
 			return (clients[ci].id);
 	}
 	return (-1);
+}
+
+int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers, SOCKET i)
+{
+	if (strcmp(keyword, "ELECTION") == 0)
+	{
+		printf("[main] ID (%d) received.\n", pred_id);
+		if (pred_id > connected_peers->ID)
+		{
+			participant = 1;
+			printf("[main] ID (%d) is greater than my ID (%d).\n", pred_id, connected_peers->ID);
+			char msg[32];
+			sprintf(msg, "ELECTION:%d", pred_id);
+			if (send(connected_peers->next->next->tcp_socket, msg, strlen(msg), 0) == -1)
+			{
+				fprintf(stderr, "[main] send() failed. (%d)\n", GETSOCKETERRNO());
+				return (1);
+			}
+			
+		} else if(pred_id < connected_peers->ID){
+			participant = 1;
+			printf("[main] ID (%d) is less than my ID (%d).\n", pred_id, connected_peers->ID);
+			char msg[32];
+			sprintf(msg, "ELECTION:%d", connected_peers->ID);
+			if (send(connected_peers->next->next->tcp_socket, msg, strlen(msg), 0) == -1)
+			{
+				fprintf(stderr, "[main] send() failed. (%d)\n", GETSOCKETERRNO());
+				return (1);
+			}
+		} else {
+			// I receive my message ELECTION:ID back so I'm the leader
+			// I send LEADER:ID to my successor
+			participant = 1;
+			connected_peers->next->leader = 1;
+			printf("[main] ID (%d) is equal to my ID (%d).\n", pred_id, connected_peers->ID);
+			char msg[32];
+			sprintf(msg, "LEADER:%d", connected_peers->ID);
+			if (send(connected_peers->next->next->tcp_socket, msg, strlen(msg), 0) == -1)
+			{
+				fprintf(stderr, "[main] send() failed. (%d)\n", GETSOCKETERRNO());
+				return (1);
+			}
+		}
+	} else if (strcmp(keyword, "LEADER") == 0) {
+		if (pred_id == connected_peers->ID)
+		{
+			participant = 0;
+			// TODO: I receive my messaeg LEADER:ID back updating ring
+		} else {
+			// the leader is found
+			participant = 0;
+			connected_peers->next->ID = pred_id;
+			connected_peers->next->leader = 1;
+			char msg[32];
+			sprintf(msg, "LEADER:%d", pred_id);
+			if (send(connected_peers->next->next->tcp_socket, msg, strlen(msg), 0) == -1)
+			{
+				fprintf(stderr, "[main] send() failed. (%d)\n", GETSOCKETERRNO());
+				return (1);
+			}
+		}
+	}
 }

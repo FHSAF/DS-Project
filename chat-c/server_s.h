@@ -73,8 +73,8 @@ typedef struct serverInfo {
 typedef struct ClientInfo {
 	int id;
 	SOCKET socket;
-	void *addr;
-	struct sockaddr_storage address;
+	char ip_addr[16];
+	struct ClientInfo *addr;
 } clientInfo;
 
 
@@ -95,12 +95,13 @@ SOCKET setup_tcp_client(char *address, char *port);
 void handle_disconnection(struct serverInfo * head, SOCKET i, SOCKET udp_socket, SOCKET mc_socket, SOCKET ltcp_socket, SOCKET successor_socket);
 SOCKET get_last_peer_socket(struct serverInfo *head);
 void append_server_sorted(struct serverInfo **head, int id, void *address, int port, int leader, SOCKET tcp_socket);
-void send_ele_msg(ServerInfo *head, SOCKET mc_socket);
+void send_ele_msg(ServerInfo *head);
 SOCKET get_pred_socket(int id, struct serverInfo *head);
 ServerInfo * get_successor(int id, struct serverInfo *head);
 int update_ring(struct serverInfo *head);
 int message_to_group(SOCKET sender_socket, int group_id, char *msg, struct serverInfo *head);
 int get_client_id(SOCKET socket);
+int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers, SOCKET i);
 
 
 // Data structure of servers to keep
