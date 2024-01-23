@@ -816,14 +816,14 @@ void handle_disconnection(struct serverInfo * head, SOCKET i, SOCKET udp_socket,
 	} else if (i == successor_socket) {
 		printf("[handle_disconnection] successor disconnected...\n");
 		delete_server(head, head->next->next->ID);
-	} else if(ist_peer_server(i, head) != 0) {
+	} else if(ist_peer_server(i, head) != NULL) {
 		ServerInfo *pred_i = ist_peer_server(i, head);
 		if (update_ring(pred_i)==-1) {
 			printf("[handle_disconnection] update_ring() failed.\n");
 			exit(1);
 		}
-		printf("[handle_disconnection] Peer (%d) disconnected...\n", pred_i->next->ID);
-		delete_server(head, pred_i->next->ID);
+		printf("[handle_disconnection] Peer (%d) disconnected...\n", pred_i->ID);
+		delete_server(head, pred_i->ID);
 	} else {
 		for (int ci = 0; ci <= client_count; ++ci)
 		{
@@ -853,11 +853,15 @@ void send_ele_msg(struct serverInfo *head, SOCKET next_socket)
 int update_ring(struct serverInfo *head)
 {
 	char update[1024];
-	snprintf(update, sizeof(update), "%d:%s:%d", head->next->next->ID, head->next->next->addr, head->next->next->port);
-	if (send(head->tcp_socket, update, strlen(update), 0) == -1)
+	printf("[update_ring] updating %d ring...\n", head->ID);
+	if (head->next != NULL)
 	{
-		fprintf(stderr, "[update_ring] send() failed. (%d)\n", GETSOCKETERRNO());
-		return (-1);
+		snprintf(update, sizeof(update), "%d:%s:%d", head->next->ID, head->next->addr, head->next->port);
+		if (send(head->tcp_socket, update, strlen(update), 0) == -1)
+		{
+			fprintf(stderr, "[update_ring] send() failed. (%d)\n", GETSOCKETERRNO());
+			return (-1);
+		}
 	}
 	return (0);
 }
