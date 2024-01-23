@@ -126,7 +126,7 @@ void append_server_sorted(struct serverInfo **head, int id, void *address, int p
 	display_server(*head);
 }
 
-ServerInfo * ist_peer_server(int sockfd, struct serverInfo *head) {
+ServerInfo * ist_peer_server(SOCKET sockfd, struct serverInfo *head) {
 	if (head->leader != 1)
 		return (0);
     struct serverInfo *current = head;
@@ -139,7 +139,7 @@ ServerInfo * ist_peer_server(int sockfd, struct serverInfo *head) {
     return (NULL);
 }
 
-SOCKET get_pred_socket(SOCKET id, struct serverInfo *head)
+SOCKET get_pred_socket(int id, struct serverInfo *head)
 {
 	struct serverInfo * current = head;
 	current = current->next;
