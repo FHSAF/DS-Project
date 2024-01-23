@@ -1,19 +1,4 @@
-#include "../chat-c/server_s.h"
-#include <ctype.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <time.h>
-
-#define PORT "4041"
-#define MAX_CONNECTION 10
-#define BUFFER_SIZE 4096
-#define SERVER_IP "192.168.0.102"
-#define NEXT_SERVER_IP "127.0.0.1"
-#define NEXT_SERVER_PORT "6970"
-#define BROADCAST_ADDRESS "192.168.0.255"
-#define BROADCAST_PORT "3938"
-#define MULTICAST_IP "239.255.255.250"
-#define MULTICAST_PORT "12345"
+#include "server_s.h"
 
 #if defined(_WIN32)
 SOCKET error_return = INVALID_SOCKET;
@@ -21,48 +6,6 @@ SOCKET error_return = INVALID_SOCKET;
 SOCKET error_return = -1;
 #endif
 
-typedef struct serverInfo {
-    int ID;
-    char addr[16];
-    int port;
-	int leader;
-	SOCKET tcp_socket;
-	struct serverInfo *next;
-} ServerInfo;
-
-void send_server_info(SOCKET dest, ServerInfo *myInfo);
-SOCKET setup_tcp_socket();
-void assign_client_info(SOCKET socket_client, struct sockaddr_storage client_address, int temp);
-SOCKET setup_udp_socket(char * sock_ip, char *sock_port);
-int leader_election();
-void udp_multicast(char *msg, struct serverInfo *head, SOCKET udp_sockfd);
-void udp_broadcast(char *msg, SOCKET udp_sockfd);
-void handle_udp_recieve(ServerInfo *connected_peers, int leader, SOCKET udp_socket);
-SOCKET join_multicast(char *multicast_ip, char * mPORT);
-SOCKET do_multicast(SOCKET *mc_socket, char *multicast_ip, char * msg);
-SOCKET service_discovery(SOCKET *mc_socket, SOCKET *successor_socket, SOCKET tcp_socket, struct serverInfo *head);
-SOCKET handle_mcast_receive(SOCKET mc_socket, struct serverInfo * connected_peers);
-SOCKET peer_mcast_receive(struct serverInfo * connected_peers, char *buf, struct sockaddr_in sender_addr);
-SOCKET setup_tcp_client(char *address, char *port);
-void handle_disconnection(struct serverInfo * head, SOCKET i, SOCKET udp_socket, SOCKET mc_socket, SOCKET ltcp_socket, SOCKET successor_socket);
-SOCKET get_last_peer_socket(struct serverInfo *head);
-
-// Data structure of servers to keep
-int server_info_exist(int id, struct serverInfo *head);
-struct serverInfo * create_server(int id, void *address, int port, int leader, SOCKET tcp_socket);
-int delete_server(struct serverInfo *head, SOCKET tcp_socket);
-void append_server(struct serverInfo **head, int id, void *address, int port, int leader, SOCKET tcp_socket);
-void display_server(struct serverInfo *head);
-void free_server_storage(struct serverInfo *head);
-int ist_peer_server(int id, struct serverInfo *head);
-
-
-struct ClientInfo {
-	int id;
-	SOCKET socket;
-	void *addr;
-	struct sockaddr_storage address;
-};
 
 struct ClientInfo clients[MAX_CONNECTION];
 struct ClientInfo *tempClient;
@@ -235,9 +178,9 @@ int main()
 								fprintf(stderr, "[main] setup_tcp_client() for new successor failed. (%d)\n", GETSOCKETERRNO());
 								return (1);
 							}
-							if (successor_socket != error_return)
+							if (connected_peers->next->next != NULL)
 							{
-								delete_server(connected_peers, successor_socket);
+								delete_server(connected_peers, connected_peers->next->next->ID);
 								append_server(&connected_peers, sID, (void *)sIP, sPORT, 0, new_successor_socket);
 								FD_CLR(successor_socket, &master);
 								CLOSESOCKET(successor_socket);
@@ -518,98 +461,6 @@ void handle_udp_recieve(ServerInfo *connected_peers, int leader, SOCKET udp_sock
 			}
 
 		}
-	}
-}
-
-int server_info_exist(int id, struct serverInfo *head)
-{
-	struct serverInfo * current = head;
-	while (current!= NULL){
-		if (current->ID == id)
-			return (1);
-		else
-			current = current->next;
-	}
-	return (0);
-}
-
-struct serverInfo * create_server(int id, void *address, int port, int leader, SOCKET tcp_socket)
-{
-	struct serverInfo* server_info = (struct serverInfo *)malloc(sizeof(struct serverInfo));
-	if (server_info == NULL)
-	{
-		printf("Memory allocation failed\n");
-		exit(1);
-	}
-	memcpy(server_info->addr, address, sizeof(server_info->addr));
-	server_info->ID = id;
-	server_info->port = port;
-	server_info->leader = leader;
-	server_info->tcp_socket = tcp_socket;
-	server_info->next = NULL;
-	
-	return (server_info);
-}
-
-void append_server(struct serverInfo **head, int id, void *address, int port, int leader, SOCKET tcp_socket)
-{
-	if (server_info_exist(id, *head))
-		return;
-	struct serverInfo * new_server = create_server(id, address, port, leader, tcp_socket);
-	printf("[append] new sever created...\n");
-	if (*head == NULL)
-		*head = new_server;
-	else{
-		struct serverInfo * current = *head;
-		while (current->next != NULL)
-			current = current->next;
-		current->next = new_server;
-	}
-	
-	display_server(*head);
-}
-
-int delete_server(struct serverInfo *head, SOCKET tcp_socket)
-{
-	struct serverInfo * current = head;
-	struct serverInfo * temp = NULL;
-	while (current != NULL){
-		if (current->next->tcp_socket == tcp_socket)
-		{
-			temp = current->next;
-			current->next = current->next->next;
-			free(temp);
-			display_server(head);
-			return (1);
-		}
-		else
-			current = current->next;
-	}
-	display_server(head);
-	return (0);
-}
-
-void display_server(struct serverInfo *head)
-{
-	struct serverInfo *current = head;
-	printf("\n\t==================== Servers I know ====================\n");
-	while (current != NULL)
-	{
-		printf("\tID: %d, IP: %s:%d, Leader: %d, Socket: %d\n", current->ID, current->addr, current->port, current->leader, current->tcp_socket);
-		current = current->next;
-	}
-	printf("\t==================== Servers I know ====================\n\n");
-}
-
-void free_server_storage(struct serverInfo *head)
-{
-	struct serverInfo *current = head;
-	struct serverInfo *nextServer;
-	while (current != NULL)
-	{
-		nextServer = current->next;
-		free(current);
-		current = nextServer;
 	}
 }
 
@@ -939,19 +790,6 @@ SOCKET setup_tcp_client(char *address, char *port)
 	return (socket_peer);
 }
 
-int ist_peer_server(int sockfd, struct serverInfo *head) {
-	if (head->leader != 1)
-		return (0);
-    struct serverInfo *current = head;
-    while (current != NULL) {
-        if (current->tcp_socket == sockfd) {
-            return (current->ID); 
-        }
-        current = current->next;
-    }
-    return (0);
-}
-
 void handle_disconnection(struct serverInfo * head, SOCKET i, SOCKET udp_socket, SOCKET mc_socket, SOCKET ltcp_socket, SOCKET successor_socket)
 {
 	if (i == udp_socket) {
@@ -962,13 +800,15 @@ void handle_disconnection(struct serverInfo * head, SOCKET i, SOCKET udp_socket,
 		printf("[handle_disconnection] leader disconnected...\n");
 		printf("[handle_disconnection] Leader election required...\n");
 		head->leader = 1;
-		delete_server(head, i);
+		delete_server(head, head->next->ID);
+		send_ele_msg(head, mc_socket);
 	} else if (i == successor_socket) {
 		printf("[handle_disconnection] successor disconnected...\n");
-		delete_server(head, i);
+		delete_server(head, head->next->next->ID);
 	} else if(ist_peer_server(i, head) != 0) {
-		printf("[handle_disconnection] Peer (%d) disconnected...\n", ist_peer_server(i, head));
-		delete_server(head, i);
+		int peer_id = ist_peer_server(i, head);
+		printf("[handle_disconnection] Peer (%d) disconnected...\n", peer_id);
+		delete_server(head, peer_id);
 	} else {
 		for (int ci = 0; ci <= client_count; ++ci)
 		{
@@ -988,10 +828,9 @@ void handle_disconnection(struct serverInfo * head, SOCKET i, SOCKET udp_socket,
 	}
 }
 
-SOCKET get_last_peer_socket(struct serverInfo *head)
+void send_ele_msg(struct serverInfo *head, SOCKET next_socket)
 {
-	struct serverInfo * current = head;
-	while (current->next != NULL)
-		current = current->next;
-	return (current->tcp_socket);
+	char msg[32];
+	sprintf(msg, "%s:%d", "ELECTION", head->ID);
+	send(next_socket, msg, strlen(msg), 0);
 }
