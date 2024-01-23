@@ -886,7 +886,7 @@ int message_to_group(SOCKET sender_socket, int group_id, char *msg, struct serve
 		printf("[message_to_group] group (%d) found locally (%d).\n", group_id, head->ID);
 		char message[1024];
 		int sender_id = get_client_id(sender_socket);
-		sprintf(message, "%d:%s", sender_id, msg);
+		sprintf(message, "%d:%s\n", sender_id, msg);
 		for (int ci = 0; ci < client_count; ++ci)
 		{
 			if (clients[ci].id != sender_id)
