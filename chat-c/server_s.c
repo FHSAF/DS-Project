@@ -987,6 +987,7 @@ int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers,
 		if (pred_id == connected_peers->ID)
 		{
 			participant = 0;
+			printf("[lcr_election] sender socket (%d)", i);
 			// TODO: I receive my messaeg LEADER:ID back updating ring
 		} else {
 			// the leader is found
@@ -1002,4 +1003,6 @@ int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers,
 			}
 		}
 	}
+
+	return (1);
 }
