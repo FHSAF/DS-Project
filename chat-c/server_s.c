@@ -818,12 +818,12 @@ void handle_disconnection(struct serverInfo * head, SOCKET i, SOCKET udp_socket,
 		delete_server(head, head->next->next->ID);
 	} else if(ist_peer_server(i, head) != NULL) {
 		ServerInfo *pred_i = ist_peer_server(i, head);
+		printf("[handle_disconnection] Peer (%d) disconnected...\n", pred_i->ID);
+		delete_server(head, pred_i->ID);
 		if (update_ring(pred_i)==-1) {
 			printf("[handle_disconnection] update_ring() failed.\n");
 			exit(1);
 		}
-		printf("[handle_disconnection] Peer (%d) disconnected...\n", pred_i->ID);
-		delete_server(head, pred_i->ID);
 	} else {
 		for (int ci = 0; ci <= client_count; ++ci)
 		{

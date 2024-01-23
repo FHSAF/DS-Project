@@ -149,7 +149,7 @@ SOCKET get_pred_socket(int id, struct serverInfo *head)
 		else
 			current = current->next;
 	}
-	return (current->next->tcp_socket);
+	return (head->next->tcp_socket);
 }
 
 SOCKET get_last_peer_socket(struct serverInfo *head)
