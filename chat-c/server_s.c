@@ -194,7 +194,11 @@ int main()
 						}
 					} else if (sscanf(read, "%d %[^\n]", &dest_id, message) == 2)
 					{
-						printf("message (%s) (%lu), (%d)\n", read, sizeof(read), byte_received);
+						#if defined(_WIN32)
+							printf("message (%s) (%d), (%d)\n", read, strlen(read), byte_received);
+						#else
+							printf("message (%s) (%lu), (%d)\n", read, sizeof(read), byte_received);
+						#endif
 						struct ClientInfo *dest_client = NULL;
 						for (int ci = 0; ci < client_count; ++ci)
 						{
@@ -567,14 +571,14 @@ SOCKET service_discovery(SOCKET *mc_socket, SOCKET *successor_socket, SOCKET tcp
 	time_t start_t, end_t;
 	time(&start_t);
 	printf("[service_discovery] broadcasting ID (%s), attempt...\n", msg);
-	if (do_multicast(mc_socket, MULTICAST_IP, msg) == -1)
-		return (-1);
+	if (!ISVALIDSOCKET(do_multicast(mc_socket, MULTICAST_IP, msg)))
+		return (error_return);
     for (int attempt = 0; attempt < 3; ++attempt)
     {
 		time(&end_t);
 		if ((int)difftime(end_t, start_t) == 3){
 			printf("[service_discovery] broadcasting ID (%s), attempt...\n", msg);
-			if (do_multicast(mc_socket, MULTICAST_IP, msg) == -1)
+			if (!ISVALIDSOCKET(do_multicast(mc_socket, MULTICAST_IP, msg)))
 				return (error_return);
 			time(&start_t);
 		}
@@ -595,7 +599,7 @@ SOCKET service_discovery(SOCKET *mc_socket, SOCKET *successor_socket, SOCKET tcp
             printf("[service_discovery] No response received within 3 seconds.\n");
         } else {
             // A response was received. Process it...
-            for (int i = 0; i <= socket_max; i++) {
+            for (SOCKET i = 0; i <= socket_max; i++) {
                 if (FD_ISSET(i, &reads)) {
 					if (i==tcp_socket) {
 
@@ -637,7 +641,7 @@ SOCKET service_discovery(SOCKET *mc_socket, SOCKET *successor_socket, SOCKET tcp
 								char port[6];
 								sprintf(port, "%d", mPORT);
 								SOCKET socket_successor = setup_tcp_client(successorIP, port);
-								if (socket_successor == -1){
+								if (!(ISVALIDSOCKET(socket_successor))) {
 									fprintf(stderr, "[service_discovery] setup_tcp_client() failed. (%d)\n", GETSOCKETERRNO());
 									CLOSESOCKET(socket_client);
 									return (error_return);
@@ -708,7 +712,7 @@ SOCKET peer_mcast_receive(struct serverInfo * connected_peers, char *buf, struct
 		char port[6];
 		sprintf(port, "%d", new_peer_port);
 		SOCKET ctcp_socket = setup_tcp_client(inet_ntoa(sender_addr.sin_addr), port);
-		if (ctcp_socket == -1)
+		if (!(ISVALIDSOCKET(ctcp_socket)))
 		{
 			fprintf(stderr, "[peer_mcast_receive] setup_tcp_client() failed. (%d)\n", GETSOCKETERRNO());
 			return (error_return);
@@ -741,7 +745,11 @@ SOCKET peer_mcast_receive(struct serverInfo * connected_peers, char *buf, struct
 			printf("[peer_mcast_receive] ID (%d) Not known.\n", new_peer_id);
 
 	} else {
-		printf("[peer_mcast_receive] Unknow message fomrat: (%lu) bytes: %.*s\n", strlen(buf), (int)strlen(buf), buf);
+		#if defined(_WIN32)
+			fprintf(stderr, "[peer_mcast_receive] Unknow message fomrat: (%d) bytes: %.*s\n", strlen(buf), (int)strlen(buf), buf);
+		#else
+			printf("[peer_mcast_receive] Unknow message fomrat: (%lu) bytes: %.*s\n", strlen(buf), (int)strlen(buf), buf);
+		#endif
 	}
    return (error_return);
 }
