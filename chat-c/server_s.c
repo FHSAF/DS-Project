@@ -1013,7 +1013,10 @@ int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers,
 				return (0);
 			}
 			if (connected_peers->next->next->ID == pred_id)
+			{
+				connected_peers->next->next->leader = 1;
 				return (pred_id);
+			}
 				
     		sprintf(msg, "%d:%d", connected_peers->ID, 4041);
 			do_multicast(mc_socket, MULTICAST_IP, msg);
