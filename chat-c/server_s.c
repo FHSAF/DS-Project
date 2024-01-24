@@ -96,7 +96,7 @@ int main()
 
         struct timeval timeout;
         timeout.tv_sec = 0;
-        timeout.tv_usec = 10000;
+        timeout.tv_usec = 100000;
 		if (select(socket_max + 1, &reads, 0, 0, &timeout) < 0)
 		{
 			fprintf(stderr, "[main] select() failed. (%d)\n", GETSOCKETERRNO());
@@ -106,19 +106,19 @@ int main()
         time(&end_t);
 		char msg1[12];
 		sprintf(msg1, "%d", connected_peers->ID);
-        if ((int)difftime(end_t, start_t) == 10)
-        {
-			FD_CLR(mc_socket, &master);
-			if (connected_peers->leader == 1)
-				do_multicast(&mc_socket, MULTICAST_IP, msg1);
-			else
-            	do_multicast(&mc_socket, MULTICAST_IP, msg1);
-			if (mc_socket > socket_max)
-				socket_max = mc_socket;
-			FD_SET(mc_socket, &master);
-            printf("%d \n", (int)difftime(end_t, start_t));
-            time(&start_t);
-        }
+        // if ((int)difftime(end_t, start_t) == 10)
+        // {
+		// 	FD_CLR(mc_socket, &master);
+		// 	if (connected_peers->leader == 1)
+		// 		do_multicast(&mc_socket, MULTICAST_IP, msg1);
+		// 	else
+        //     	do_multicast(&mc_socket, MULTICAST_IP, msg1);
+		// 	if (mc_socket > socket_max)
+		// 		socket_max = mc_socket;
+		// 	FD_SET(mc_socket, &master);
+        //     printf("%d \n", (int)difftime(end_t, start_t));
+        //     time(&start_t);
+        // }
 
 		SOCKET i;
 		for (i = 1; i <= socket_max; ++i)
@@ -970,13 +970,11 @@ int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers,
 			printf("[lcr_election] ID (%d) is equal to my ID (%d).\n", pred_id, connected_peers->ID);
 			char msg[32];
 			sprintf(msg, "LEADER:%d", connected_peers->ID);
-			printf("[lcr_election] sending Leader message \n");
 			if (send(connected_peers->next->next->tcp_socket, msg, strlen(msg), 0) == -1)
 			{
 				fprintf(stderr, "[lcr_election] send() failed. (%d)\n", GETSOCKETERRNO());
 				return (1);
 			}
-			printf("[lcr_election] sending Leader message \n");
 			delete_server(connected_peers, connected_peers->next->ID);
 		}
 	} else if (strcmp(keyword, "LEADER") == 0) {
@@ -993,7 +991,6 @@ int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers,
 				fprintf(stderr, "[lcr_election] send() to last peer failed. (%d)\n", GETSOCKETERRNO());
 				return (error_return);
 			}
-			
 			// TODO: I receive my messaeg LEADER:ID back updating ring
 		} else {
 			// the leader is found
