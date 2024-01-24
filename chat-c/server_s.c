@@ -989,7 +989,7 @@ int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers,
 			printf("[lcr_election] I'm leader (%d)", i);
 			char message[32];
 			snprintf(message, sizeof(message), "%s:%d:%d", connected_peers->next->addr, connected_peers->next->ID, connected_peers->next->port);
-			SOCKET last_peer_socket = get_last_peer_socket(connected_peers);
+			// SOCKET last_peer_socket = get_last_peer_socket(connected_peers);
 			SOCKET pred_socket = get_pred_socket(connected_peers->next->ID, connected_peers);
 			printf("[lcr_election] sending (%s) to (%d) socket (%d)...\n", message, connected_peers->next->ID, pred_socket);
 			if (send(pred_socket, message, strlen(message), 0) == -1) {
