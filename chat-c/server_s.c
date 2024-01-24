@@ -968,11 +968,13 @@ int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers,
 			printf("[lcr_election] ID (%d) is equal to my ID (%d).\n", pred_id, connected_peers->ID);
 			char msg[32];
 			sprintf(msg, "LEADER:%d", connected_peers->ID);
+			printf("[lcr_election] sending Leader message \n");
 			if (send(connected_peers->next->next->tcp_socket, msg, strlen(msg), 0) == -1)
 			{
 				fprintf(stderr, "[lcr_election] send() failed. (%d)\n", GETSOCKETERRNO());
 				return (1);
 			}
+			printf("[lcr_election] sending Leader message \n");
 			delete_server(connected_peers, connected_peers->next->ID);
 		}
 	} else if (strcmp(keyword, "LEADER") == 0) {
@@ -993,6 +995,7 @@ int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers,
 			// TODO: I receive my messaeg LEADER:ID back updating ring
 		} else {
 			// the leader is found
+			printf("[lcr_election] Leader found (%d).\n", pred_id);
 			participant = 0;
 			connected_peers->next->ID = pred_id;
 			connected_peers->next->leader = 1;
