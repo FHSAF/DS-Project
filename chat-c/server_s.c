@@ -143,7 +143,7 @@ int main()
 					}
 					char address_buffer[100];
 					getnameinfo((struct sockaddr*)&client_address, client_len, address_buffer, sizeof(address_buffer), 0, 0, NI_NUMERICHOST);
-					printf("New connection from %s\n", address_buffer);
+					printf("[main] New connection from %s\n", address_buffer);
 					assign_client_info(socket_client, client_address, 0);
 				} else if (i == mc_socket) {
 					SOCKET peer_socket = handle_mcast_receive(mc_socket, connected_peers);
@@ -179,7 +179,7 @@ int main()
 						printf("[main] read on ltcpsocket...\n");
 						int sID, sPORT;
 						char sIP[16];
-						if (sscanf(read, "%d:%15[^:]:%d", &sID, sIP, &sPORT) == 3)
+						if (sscanf(read, "%15[^:]:%d:%d", sIP, &sID, &sPORT) == 3)
 						{
 							SOCKET new_successor_socket = setup_tcp_client(sIP, PORT);
 							if (!(ISVALIDSOCKET(new_successor_socket))){
@@ -203,9 +203,9 @@ int main()
 					} else if (sscanf(read, "%d %[^\n]", &dest_id, message) == 2)
 					{
 						#if defined(_WIN32)
-							printf("message (%s) (%d), (%d)\n", read, strlen(read), byte_received);
+							printf("[main] message (%s) (%d), (%d)\n", read, strlen(read), byte_received);
 						#else
-							printf("message (%s) (%lu), (%d)\n", read, sizeof(read), byte_received);
+							printf("[main] message (%s) (%lu), (%d)\n", read, sizeof(read), byte_received);
 						#endif
 						struct ClientInfo *dest_client = NULL;
 						// check if the dest_id is group id
@@ -219,7 +219,7 @@ int main()
 							if (clients[ci].id == dest_id)
 							{
 								dest_client = &clients[ci];
-            					printf("Received from ID (%d), forwarding to ID (%d).\n", i, dest_client->id);
+            					printf("[main] Received from ID (%d), forwarding to ID (%d).\n", i, dest_client->id);
 								break;
 							}
 						}
@@ -227,16 +227,20 @@ int main()
 						if (dest_client != NULL)
 						{
 							int bytes_sent = send(dest_client->socket, read, byte_received, 0);
-            				printf("Sent %d bytes to (%d)\n", bytes_sent, dest_client->id);
+            				printf("[main] Sent %d bytes to (%d)\n", bytes_sent, dest_client->id);
 						} else {
-							printf("Client not found (%d).\n", dest_id);
+							printf("[main] Client not found (%d).\n", dest_id);
 						}
 					} else if (sscanf(read, "%9[^:]:%d", keyword, &pred_id) == 2) {
-						lcr_election(keyword, pred_id, connected_peers, i, &mc_socket);
+						if (lcr_election(keyword, pred_id, connected_peers, i, &mc_socket) == connected_peers->next->ID) {
+							FD_CLR(connected_peers->next->next->tcp_socket, &master);
+							CLOSESOCKET(connected_peers->next->next->tcp_socket);
+							delete_server(connected_peers, connected_peers->next->next->ID);
+						}
 					} else {
 						int sID, sPORT;
 						char sIP[16];
-						if (sscanf(read, "%d:%15[^:]:%d", &sID, sIP, &sPORT) == 3){
+						if (sscanf(read, "%15[^:]:%d:%d", sIP, &sID, &sPORT) == 3){
 							printf("[main] update leader tcp socket: %.*s\n", byte_received, read);
 							connected_peers->next->tcp_socket = i;
 							remove_client_from_list(i);
@@ -761,7 +765,7 @@ SOCKET peer_mcast_receive(struct serverInfo * connected_peers, char *buf, struct
 		}
 		// send the new peer ip, id, port to the last peer
 		if (connected_peers->next){
-			snprintf(message, sizeof(message), "%d:%s:%d", new_peer_id, inet_ntoa(sender_addr.sin_addr), new_peer_port);
+			snprintf(message, sizeof(message), "%s:%d:%d", inet_ntoa(sender_addr.sin_addr), new_peer_id, new_peer_port);
 			// SOCKET last_peer_socket = get_last_peer_socket(connected_peers);
 			SOCKET pred_socket = get_pred_socket(new_peer_id, connected_peers);
 			if (send(pred_socket, message, strlen(message), 0) == -1) {
@@ -1006,8 +1010,9 @@ int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers,
 				fprintf(stderr, "[lcr_election] send() failed. (%d)\n", GETSOCKETERRNO());
 				return (0);
 			}
-			if (connected_peers->next->next->ID != pred_id)
-				delete_server(connected_peers, connected_peers->next->next->ID);
+			if (connected_peers->next->next->ID == pred_id)
+				return (pred_id);
+				
     		sprintf(msg, "%d:%d", connected_peers->ID, 4041);
 			do_multicast(mc_socket, MULTICAST_IP, msg);
 		}
