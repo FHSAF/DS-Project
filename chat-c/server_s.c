@@ -200,7 +200,7 @@ int main()
 							if (successor_socket > socket_max)
 								socket_max = successor_socket;
 						}
-					} else if (sscanf(read, "%d %[^\n]", &dest_id, message) == 2)
+					} else if (sscanf(read, "client:%d %[^\n]", &dest_id, message) == 2)
 					{
 						#if defined(_WIN32)
 							printf("[main] message (%s) (%d), (%d)\n", read, strlen(read), byte_received);
