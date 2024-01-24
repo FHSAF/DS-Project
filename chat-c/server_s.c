@@ -235,6 +235,7 @@ int main()
 						if (lcr_election(keyword, pred_id, connected_peers, i, &mc_socket) == connected_peers->next->ID) {
 							FD_CLR(connected_peers->next->next->tcp_socket, &master);
 							CLOSESOCKET(connected_peers->next->next->tcp_socket);
+							display_server(connected_peers);
 							delete_server(connected_peers, connected_peers->next->next->ID);
 						}
 					} else {
@@ -973,9 +974,9 @@ int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers,
 			participant = 1;
 			connected_peers->leader = 1;
 			printf("[lcr_election] ID (%d) is equal to my ID (%d).\n", pred_id, connected_peers->ID);
-			char msg[32];
-			sprintf(msg, "LEADERRR:%d", connected_peers->ID);
-			if (send(connected_peers->next->next->tcp_socket, msg, strlen(msg), 0) == -1)
+			char msg2[64];
+			sprintf(msg2, "LEADERRR:%d", connected_peers->ID);
+			if (send(connected_peers->next->next->tcp_socket, msg2, strlen(msg2), 0) == -1)
 			{
 				fprintf(stderr, "[lcr_election] send() failed. (%d)\n", GETSOCKETERRNO());
 				return (1);
