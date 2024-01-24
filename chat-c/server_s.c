@@ -847,7 +847,7 @@ void handle_disconnection(struct serverInfo * head, SOCKET i, SOCKET udp_socket,
 		// head->leader = 1;
 		// delete_server(head, head->next->ID);
 		send_ele_msg(head);
-	} else if (i == successor_socket) {
+	} else if ((i == successor_socket) && (head->leader != 1)) {
 		printf("[handle_disconnection] successor disconnected...\n");
 		delete_server(head, head->next->next->ID);
 	} else if(ist_peer_server(i, head) != NULL) {
@@ -987,15 +987,15 @@ int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers,
 		{
 			participant = 0;
 			printf("[lcr_election] I'm leader (%d)", i);
-			// char message[32];
-			// snprintf(message, sizeof(message), "%d:%s:%d", connected_peers->next->ID, connected_peers->next->addr, connected_peers->next->port);
-			// // SOCKET last_peer_socket = get_last_peer_socket(connected_peers);
-			// SOCKET pred_socket = get_pred_socket(connected_peers->next->ID, connected_peers);
-			// printf("[lcr_election] sending (%s) to (%d) socket (%d)...\n", message, connected_peers->next->ID, pred_socket);
-			// if (send(pred_socket, message, strlen(message), 0) == -1) {
-			// 	fprintf(stderr, "[lcr_election] send() to last peer failed. (%d)\n", GETSOCKETERRNO());
-			// 	return (error_return);
-			// }
+			char message[32];
+			snprintf(message, sizeof(message), "%s:%d:%d", connected_peers->next->addr, connected_peers->next->ID, connected_peers->next->port);
+			SOCKET last_peer_socket = get_last_peer_socket(connected_peers);
+			SOCKET pred_socket = get_pred_socket(connected_peers->next->ID, connected_peers);
+			printf("[lcr_election] sending (%s) to (%d) socket (%d)...\n", message, connected_peers->next->ID, pred_socket);
+			if (send(pred_socket, message, strlen(message), 0) == -1) {
+				fprintf(stderr, "[lcr_election] send() to last peer failed. (%d)\n", GETSOCKETERRNO());
+				return (error_return);
+			}
 			// TODO: I receive my messaeg LEADER:ID back updating ring
 		} else {
 			// the leader is found
