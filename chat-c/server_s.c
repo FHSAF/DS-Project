@@ -960,9 +960,11 @@ int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers,
 				fprintf(stderr, "[lcr_election] send() failed. (%d)\n", GETSOCKETERRNO());
 				return (0);
 			}
-		} else {
+		} else if(connected_peers->ID == pred_id) {
 			// I receive my message ELECTION:ID back so I'm the leader
 			// I send LEADER:ID to my successor
+			if (connected_peers->leader == 1)
+				return (0);
 			participant = 1;
 			connected_peers->leader = 1;
 			printf("[lcr_election] ID (%d) is equal to my ID (%d).\n", pred_id, connected_peers->ID);
