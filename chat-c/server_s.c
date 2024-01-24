@@ -232,9 +232,9 @@ int main()
 					} else if (sscanf(read, "%9[^:]:%d", keyword, &pred_id) == 2) {
 						lcr_election(keyword, pred_id, connected_peers, i, &mc_socket);
 					} else {
-						int ID, IDs, mPORT;
-						char successorIP[16];
-						if (sscanf(read, "%d:%15[^:]:%d:%d", &ID, successorIP, &mPORT, &IDs) == 4){
+						int sID, sPORT;
+						char sIP[16];
+						if (sscanf(read, "%d:%15[^:]:%d", &sID, sIP, &sPORT) == 3){
 							printf("[main] update leader tcp socket: %.*s\n", byte_received, read);
 							connected_peers->next->tcp_socket = i;
 							remove_client_from_list(i);
@@ -962,7 +962,7 @@ int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers,
 			// I receive my message ELECTION:ID back so I'm the leader
 			// I send LEADER:ID to my successor
 			participant = 1;
-			connected_peers->next->leader = 1;
+			connected_peers->leader = 1;
 			printf("[lcr_election] ID (%d) is equal to my ID (%d).\n", pred_id, connected_peers->ID);
 			char msg[32];
 			sprintf(msg, "LEADER:%d", connected_peers->ID);
