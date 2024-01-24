@@ -230,10 +230,19 @@ int main()
 							printf("Client not found (%d).\n", dest_id);
 						}
 					} else if (sscanf(read, "%9[^:]:%d", keyword, &pred_id) == 2) {
-						lcr_election(keyword, pred_id, connected_peers, i);
+						lcr_election(keyword, pred_id, connected_peers, i, &mc_socket);
 					} else {
+						int ID, IDs, mPORT;
+						char successorIP[16];
+						if (sscanf(read, "%d:%15[^:]:%d:%d", &ID, successorIP, &mPORT, &IDs) == 4){
+							printf("[main] update leader tcp socket: %.*s\n", byte_received, read);
+							connected_peers->next->tcp_socket = i;
+							remove_client_from_list(i);
+							ltcp_socket = i;
+						} else {
 						printf("[main] read on socket (%d) %s...\n", i, read);
 						continue;
+						}
 
 						// SOCKET j;
 						// for (j = 1; j <= socket_max; ++j)
@@ -593,21 +602,12 @@ SOCKET service_discovery(SOCKET *mc_socket, SOCKET *successor_socket, SOCKET tcp
 	SOCKET socket_client;
 	char address_buffer[100];
 	char service_buffer[100];
-	time_t start_t, end_t;
-	time(&start_t);
-	printf("[service_discovery] broadcasting ID (%s), attempt...\n", msg);
+
+	printf("\t[service_discovery] broadcasting ID (%s), attempt(%d)...\n", msg, 1);
 	if (!ISVALIDSOCKET(do_multicast(mc_socket, MULTICAST_IP, msg)))
 		return (error_return);
-    for (int attempt = 0; attempt < 3; ++attempt)
+    for (int attempt = 0; attempt < 2; ++attempt)
     {
-		time(&end_t);
-		if ((int)difftime(end_t, start_t) == 3){
-			printf("[service_discovery] broadcasting ID (%s), attempt...\n", msg);
-			if (!ISVALIDSOCKET(do_multicast(mc_socket, MULTICAST_IP, msg)))
-				return (error_return);
-			time(&start_t);
-		}
-
         fd_set reads;
         reads = master;
 
@@ -622,6 +622,9 @@ SOCKET service_discovery(SOCKET *mc_socket, SOCKET *successor_socket, SOCKET tcp
 			return (error_return);
         } else if (activity == 0) {
             printf("[service_discovery] No response received within 3 seconds.\n");
+			printf("\t[service_discovery] broadcasting ID (%s), attempt(%d)...\n\n", msg, attempt+2);
+			if (!ISVALIDSOCKET(do_multicast(mc_socket, MULTICAST_IP, msg)))
+				return (error_return);
         } else {
             // A response was received. Process it...
             for (SOCKET i = 0; i <= socket_max; i++) {
@@ -852,21 +855,7 @@ void handle_disconnection(struct serverInfo * head, SOCKET i, SOCKET udp_socket,
 			exit(1);
 		}
 	} else {
-		for (int ci = 0; ci <= client_count; ++ci)
-		{
-			if (clients[ci].socket == i)
-			{
-				printf("Client with (%d) disconnected.\n", clients[ci].id);
-				free(clients[ci].addr);
-				// printf("freed %p \n", clients[ci].addr);
-				for (int cj = ci; cj < client_count - 1; ++cj)
-				{
-					clients[cj] = clients[cj + 1];
-				}
-				client_count--;
-				break;
-			}
-		}
+		remove_client_from_list(i);
 	}
 }
 
@@ -942,31 +931,31 @@ int get_client_id(SOCKET socket)
 	return (-1);
 }
 
-int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers, SOCKET i)
+int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers, SOCKET i, SOCKET *mc_socket)
 {
 	if (strcmp(keyword, "ELECTION") == 0)
 	{
-		printf("[main] ID (%d) received.\n", pred_id);
+		printf("[lcr_election] ID (%d) received.\n", pred_id);
 		if (pred_id > connected_peers->ID)
 		{
 			participant = 1;
-			printf("[main] ID (%d) is greater than my ID (%d).\n", pred_id, connected_peers->ID);
+			printf("[lcr_election] ID (%d) is greater than my ID (%d).\n", pred_id, connected_peers->ID);
 			char msg[32];
 			sprintf(msg, "ELECTION:%d", pred_id);
 			if (send(connected_peers->next->next->tcp_socket, msg, strlen(msg), 0) == -1)
 			{
-				fprintf(stderr, "[main] send() failed. (%d)\n", GETSOCKETERRNO());
+				fprintf(stderr, "[lcr_election] send() failed. (%d)\n", GETSOCKETERRNO());
 				return (1);
 			}
 			
 		} else if(pred_id < connected_peers->ID){
 			participant = 1;
-			printf("[main] ID (%d) is less than my ID (%d).\n", pred_id, connected_peers->ID);
+			printf("[lcr_election] ID (%d) is less than my ID (%d).\n", pred_id, connected_peers->ID);
 			char msg[32];
 			sprintf(msg, "ELECTION:%d", connected_peers->ID);
 			if (send(connected_peers->next->next->tcp_socket, msg, strlen(msg), 0) == -1)
 			{
-				fprintf(stderr, "[main] send() failed. (%d)\n", GETSOCKETERRNO());
+				fprintf(stderr, "[lcr_election] send() failed. (%d)\n", GETSOCKETERRNO());
 				return (1);
 			}
 		} else {
@@ -974,20 +963,31 @@ int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers,
 			// I send LEADER:ID to my successor
 			participant = 1;
 			connected_peers->next->leader = 1;
-			printf("[main] ID (%d) is equal to my ID (%d).\n", pred_id, connected_peers->ID);
+			printf("[lcr_election] ID (%d) is equal to my ID (%d).\n", pred_id, connected_peers->ID);
 			char msg[32];
 			sprintf(msg, "LEADER:%d", connected_peers->ID);
 			if (send(connected_peers->next->next->tcp_socket, msg, strlen(msg), 0) == -1)
 			{
-				fprintf(stderr, "[main] send() failed. (%d)\n", GETSOCKETERRNO());
+				fprintf(stderr, "[lcr_election] send() failed. (%d)\n", GETSOCKETERRNO());
 				return (1);
 			}
+			delete_server(connected_peers, connected_peers->next->ID);
 		}
 	} else if (strcmp(keyword, "LEADER") == 0) {
 		if (pred_id == connected_peers->ID)
 		{
 			participant = 0;
-			printf("[lcr_election] sender socket (%d)", i);
+			printf("[lcr_election] I'm leader (%d)", i);
+			char message[32];
+			snprintf(message, sizeof(message), "%d:%s:%d", connected_peers->next->ID, connected_peers->next->addr, connected_peers->next->port);
+			// SOCKET last_peer_socket = get_last_peer_socket(connected_peers);
+			SOCKET pred_socket = get_pred_socket(connected_peers->next->ID, connected_peers);
+			printf("[lcr_election] sending (%s) to (%d)...\n", message, connected_peers->next->ID);
+			if (send(pred_socket, message, strlen(message), 0) == -1) {
+				fprintf(stderr, "[lcr_election] send() to last peer failed. (%d)\n", GETSOCKETERRNO());
+				return (error_return);
+			}
+			
 			// TODO: I receive my messaeg LEADER:ID back updating ring
 		} else {
 			// the leader is found
@@ -998,11 +998,32 @@ int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers,
 			sprintf(msg, "LEADER:%d", pred_id);
 			if (send(connected_peers->next->next->tcp_socket, msg, strlen(msg), 0) == -1)
 			{
-				fprintf(stderr, "[main] send() failed. (%d)\n", GETSOCKETERRNO());
+				fprintf(stderr, "[lcr_election] send() failed. (%d)\n", GETSOCKETERRNO());
 				return (1);
 			}
+    		sprintf(msg, "%d:%d", connected_peers->ID, 4041);
+			do_multicast(mc_socket, MULTICAST_IP, msg);
 		}
 	}
 
 	return (1);
+}
+
+void remove_client_from_list(SOCKET sockfd)
+{
+	for (int ci = 0; ci < client_count; ++ci)
+	{
+		if (clients[ci].socket == sockfd)
+		{
+			printf("Client with (%d) disconnected.\n", clients[ci].id);
+			free(clients[ci].addr);
+			// printf("freed %p \n", clients[ci].addr);
+			for (int cj = ci; cj < client_count - 1; ++cj)
+			{
+				clients[cj] = clients[cj + 1];
+			}
+			client_count--;
+			break;
+		}
+	}
 }
