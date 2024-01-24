@@ -159,6 +159,8 @@ int main()
 					if (byte_received < 1)
 					{
 						handle_disconnection(connected_peers, i, udp_socket, mc_socket, ltcp_socket, successor_socket);
+						if (i == ltcp_socket)
+							ltcp_socket = error_return;
 						FD_CLR(i, &master);
 						CLOSESOCKET(i);
 						continue;
@@ -945,7 +947,7 @@ int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers,
 			if (send(connected_peers->next->next->tcp_socket, msg, strlen(msg), 0) == -1)
 			{
 				fprintf(stderr, "[lcr_election] send() failed. (%d)\n", GETSOCKETERRNO());
-				return (1);
+				return (0);
 			}
 			
 		} else if(pred_id < connected_peers->ID){
@@ -956,7 +958,7 @@ int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers,
 			if (send(connected_peers->next->next->tcp_socket, msg, strlen(msg), 0) == -1)
 			{
 				fprintf(stderr, "[lcr_election] send() failed. (%d)\n", GETSOCKETERRNO());
-				return (1);
+				return (0);
 			}
 		} else {
 			// I receive my message ELECTION:ID back so I'm the leader
@@ -982,7 +984,7 @@ int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers,
 			snprintf(message, sizeof(message), "%d:%s:%d", connected_peers->next->ID, connected_peers->next->addr, connected_peers->next->port);
 			// SOCKET last_peer_socket = get_last_peer_socket(connected_peers);
 			SOCKET pred_socket = get_pred_socket(connected_peers->next->ID, connected_peers);
-			printf("[lcr_election] sending (%s) to (%d)...\n", message, connected_peers->next->ID);
+			printf("[lcr_election] sending (%s) to (%d) socket (%d)...\n", message, connected_peers->next->ID, pred_socket);
 			if (send(pred_socket, message, strlen(message), 0) == -1) {
 				fprintf(stderr, "[lcr_election] send() to last peer failed. (%d)\n", GETSOCKETERRNO());
 				return (error_return);
@@ -999,14 +1001,14 @@ int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers,
 			if (send(connected_peers->next->next->tcp_socket, msg, strlen(msg), 0) == -1)
 			{
 				fprintf(stderr, "[lcr_election] send() failed. (%d)\n", GETSOCKETERRNO());
-				return (1);
+				return (0);
 			}
     		sprintf(msg, "%d:%d", connected_peers->ID, 4041);
 			do_multicast(mc_socket, MULTICAST_IP, msg);
 		}
 	}
 
-	return (1);
+	return (0);
 }
 
 void remove_client_from_list(SOCKET sockfd)
