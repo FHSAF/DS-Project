@@ -210,7 +210,7 @@ int main()
 					} else if (sscanf(read, "CLIENT:%d:%d %[^\n]", &sender_id, &dest_id, message) == 3)
 					{
 						handle_client_message(sender_id, dest_id, message, connected_peers);
-					} else if (sscanf(read, "ELECTION:%9[^:]:%d", keyword, &pred_id) == 2) {
+					} else if (sscanf(read, "ELECTION:%7[^:]:%d", keyword, &pred_id) == 2) {
 						printf("[main] keyword (%s) (%d)\n", read, pred_id);
 						int value = leader_found(read);
 						if (value != 0)
@@ -867,7 +867,7 @@ void send_ele_msg(struct serverInfo *head)
 		return;
 	}
 	char msg[32];
-	sprintf(msg, "%s:%d", "ELECTION:ELECTION", head->ID);
+	sprintf(msg, "%s:%d", "ELECTION:VOTE", head->ID);
 	if (send(head->next->next->tcp_socket, msg, strlen(msg), 0) == -1)
 	{
 		fprintf(stderr, "[send_ele_msg] send() failed. (%d)\n", GETSOCKETERRNO());
@@ -932,7 +932,7 @@ int get_client_id(SOCKET socket)
 int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers, SOCKET i, SOCKET *mc_socket)
 {
 	printf("[lcr_election] keyword (%s) pred_id (%d) my ID (%d).\n", keyword, pred_id, connected_peers->ID);
-	if (strcmp(keyword, "ELECTION") == 0)
+	if (strcmp(keyword, "VOTE") == 0)
 	{
 		printf("[lcr_election] ID (%d) received.\n", pred_id);
 		if (pred_id > connected_peers->ID)
@@ -941,7 +941,7 @@ int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers,
 			printf("[lcr_election] ID (%d) is greater than my ID (%d).\n", pred_id, connected_peers->ID);
 			char msg[32];
 			memset(msg, 0, sizeof(msg));
-			sprintf(msg, "ELECTION:%d", pred_id);
+			sprintf(msg, "ELECTION:VOTE%d", pred_id);
 			if (send(connected_peers->next->next->tcp_socket, msg, strlen(msg), 0) == -1)
 			{
 				fprintf(stderr, "[lcr_election] send() failed. (%d)\n", GETSOCKETERRNO());
@@ -955,7 +955,7 @@ int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers,
 			printf("[lcr_election] ID (%d) is less than my ID (%d).\n", pred_id, connected_peers->ID);
 			char msg[32];
 			memset(msg, 0, sizeof(msg));
-			sprintf(msg, "ELECTION:%d", connected_peers->ID);
+			sprintf(msg, "ELECTION:VOTE:%d", connected_peers->ID);
 			if (send(connected_peers->next->next->tcp_socket, msg, strlen(msg), 0) == -1)
 			{
 				fprintf(stderr, "[lcr_election] send() failed. (%d)\n", GETSOCKETERRNO());
