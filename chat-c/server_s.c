@@ -210,7 +210,7 @@ int main()
 					} else if (sscanf(read, "CLIENT:%d:%d %[^\n]", &sender_id, &dest_id, message) == 3)
 					{
 						handle_client_message(sender_id, dest_id, message, connected_peers);
-					} else if (sscanf(read, "ELECTION:%9[^:]:%d", keyword, &pred_id) == 1) {
+					} else if (sscanf(read, "ELECTION:%9[^:]:%d", keyword, &pred_id) == 2) {
 						printf("[main] keyword (%s) (%d)\n", read, pred_id);
 						int value = leader_found(read);
 						if (value != 0)
