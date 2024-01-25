@@ -866,7 +866,7 @@ void send_ele_msg(struct serverInfo *head)
 		return;
 	}
 	char msg[32];
-	sprintf(msg, "%s:%d", "ELECTION", head->ID);
+	sprintf(msg, "%s:%d", "ELECTION:ELECTION", head->ID);
 	if (send(head->next->next->tcp_socket, msg, strlen(msg), 0) == -1)
 	{
 		fprintf(stderr, "[send_ele_msg] send() failed. (%d)\n", GETSOCKETERRNO());
