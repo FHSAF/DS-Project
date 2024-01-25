@@ -155,6 +155,7 @@ int main()
 					}
 				} else {
 					char read[1024];
+					memset(read, 0, sizeof(read));
 					int byte_received = recv(i, read, 1024, 0);
 					if (byte_received < 1)
 					{
@@ -171,8 +172,10 @@ int main()
 						continue;
 					}
 					int dest_id;
-					char message[2048];
+					char message[1024];
+					memset(message, 0, sizeof(message));
 					char keyword[10];
+					memset(keyword, 0, sizeof(keyword));
 					int pred_id;
 					read[byte_received] = '\0';
 					printf("[main] read (%s) (%d) bytes: %.*s\n", read, byte_received, byte_received, read);
@@ -233,6 +236,12 @@ int main()
 							printf("[main] Client not found (%d).\n", dest_id);
 						}
 					} else if (sscanf(read, "%9[^:]:%d", keyword, &pred_id) == 2) {
+						int value;
+						if (sscanf(read, "%*[^L]LEADERRR:%d", &value) == 1)
+						{
+							sprintf(keyword, "LEADERRR");
+							pred_id = value;
+						}
 						if (lcr_election(keyword, pred_id, connected_peers, i, &mc_socket) == connected_peers->next->ID) {
 							FD_CLR(connected_peers->next->next->tcp_socket, &master);
 							CLOSESOCKET(connected_peers->next->next->tcp_socket);
@@ -244,6 +253,7 @@ int main()
 						int sID, sPORT;
 						char sIP[16];
 						if (sscanf(read, "%15[^:]:%d:%d", sIP, &sID, &sPORT) == 3){
+							
 							printf("[main] update leader tcp socket: %.*s\n", byte_received, read);
 							connected_peers->next->tcp_socket = i;
 							remove_client_from_list(i);
