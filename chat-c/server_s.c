@@ -175,6 +175,7 @@ int main()
 					char keyword[10];
 					int pred_id;
 					read[byte_received] = '\0';
+					printf("[main] read (%s) (%d) bytes: %.*s\n", read, byte_received, byte_received, read);
 					if (i == ltcp_socket){
 						printf("[main] read on ltcpsocket...\n");
 						int sID, sPORT;
@@ -238,6 +239,7 @@ int main()
 							display_server(connected_peers);
 							delete_server(connected_peers, connected_peers->next->next->ID);
 						}
+						fflush(stdout);
 					} else {
 						int sID, sPORT;
 						char sIP[16];
@@ -982,6 +984,7 @@ int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers,
 			char msg2[64];
 			memset(msg2, 0, sizeof(msg2));
 			sprintf(msg2, "LEADERRR:%d", connected_peers->ID);
+			printf("[lcr_election] sending (%s) to (%d) socket (%d)...\n", msg2, connected_peers->next->ID, connected_peers->next->next->tcp_socket);
 			if (send(connected_peers->next->next->tcp_socket, msg2, strlen(msg2), 0) == -1)
 			{
 				fprintf(stderr, "[lcr_election] send() failed. (%d)\n", GETSOCKETERRNO());
