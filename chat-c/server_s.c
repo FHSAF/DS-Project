@@ -5,6 +5,9 @@ SOCKET error_return = INVALID_SOCKET;
 #else
 SOCKET error_return = -1;
 #endif
+
+int leader_found(char *message);
+
 int GROUP_ID;
 
 struct ClientInfo clients[MAX_CONNECTION];
@@ -236,9 +239,11 @@ int main()
 							printf("[main] Client not found (%d).\n", dest_id);
 						}
 					} else if (sscanf(read, "%9[^:]:%d", keyword, &pred_id) == 2) {
-						int value;
-						if (sscanf(read, "%*[^L]LEADERRR:%d", &value) == 1)
+						printf("[main] keyword (%s) (%d)\n", read, pred_id);
+						int value = leader_found(read);
+						if (value != 0)
 						{
+							printf("[main] ELECTION rejected LEADER received\n");
 							sprintf(keyword, "LEADERRR");
 							pred_id = value;
 						}
@@ -1064,4 +1069,24 @@ void remove_client_from_list(SOCKET sockfd)
 			break;
 		}
 	}
+}
+
+int leader_found(char *message)
+{
+	char *found = strstr(message, "LEADERRR:");
+	int value = 0;
+
+	if (found != NULL) {
+		char *endptr;
+		value = strtol(found + strlen("LEADERRR:"), &endptr, 10);
+		if (endptr != found + strlen("LEADERRR:")) {
+			printf("[leader_found] Found LEADERRR with ID %d\n", value);
+			return (value);
+		} else {
+			printf("[leader_found] No integer found after LEADERRR:\n");
+		}
+	} else {
+		printf("[leader_found] LEADERRR: not found\n");
+	}
+	return (value);
 }
