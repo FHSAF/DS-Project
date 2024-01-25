@@ -74,7 +74,8 @@ int main(int argc, char *argv[]) {
         return (0);
     }
     printf("Connected with assigned ID: %d\n", client_id);
-    printf("<id> <message>.\n");
+    printf("Enter <id> <message> to send (empty line to quit):\n----->");
+    fflush(stdout);
     while(1) {
 
         fd_set reads;
@@ -100,8 +101,9 @@ int main(int argc, char *argv[]) {
                 printf("Connection closed by peer.\n");
                 break;
             }
-            printf("Received (%d bytes): %.*s",
-                    bytes_received, bytes_received, read);
+            printf("\n\t%.*s\n", bytes_received, read);
+            printf("Enter <id> <message> to send (empty line to quit):\n----->");
+            fflush(stdout);
         }
 
 #if defined(_WIN32)
@@ -109,11 +111,18 @@ int main(int argc, char *argv[]) {
 #else
         if(FD_ISSET(0, &reads)) {
 #endif
-            char read[4096];
-            if (!fgets(read, 4096, stdin)) break;
-            printf("Sending: %s", read);
-            int bytes_sent = send(socket_peer, read, strlen(read), 0);
+            char read[1024];
+            char message[1056];
+            memset(read, 0, 1024);
+            memset(message, 0, 1056);
+            if (!fgets(read, 1024, stdin)) break;
+            if (strlen(read) <= 1) break;
+            sprintf(message, "CLIENT:%d:%s", client_id, read);
+            printf("Sending: %lu %s", strlen(read), message);
+            int bytes_sent = send(socket_peer, message, strlen(message), 0);
             printf("Sent %d bytes.\n", bytes_sent);
+            printf("Enter <id> <message> to send (empty line to quit):\n----->");
+            fflush(stdout);
         }
     } //end while(1)
 

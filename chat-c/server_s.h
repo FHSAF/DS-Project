@@ -46,7 +46,7 @@
 #define PORT "4041"
 #define MAX_CONNECTION 10
 #define BUFFER_SIZE 4096
-#define SERVER_IP "192.168.0.102"
+#define SERVER_IP "192.168.0.100"
 #define NEXT_SERVER_IP "127.0.0.1"
 #define NEXT_SERVER_PORT "6970"
 #define BROADCAST_ADDRESS "192.168.0.255"
@@ -103,6 +103,8 @@ int message_to_group(SOCKET sender_socket, int group_id, char *msg, struct serve
 int get_client_id(SOCKET socket);
 int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers, SOCKET i, SOCKET *mc_socket);
 void remove_client_from_list(SOCKET sockfd);
+int leader_found(char *message);
+int handle_client_message(int sender_id, int dest_id, char *message, struct serverInfo *head);
 
 
 // Data structure of servers to keep

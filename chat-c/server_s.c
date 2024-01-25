@@ -6,7 +6,6 @@ SOCKET error_return = INVALID_SOCKET;
 SOCKET error_return = -1;
 #endif
 
-int leader_found(char *message);
 
 int GROUP_ID;
 
@@ -169,24 +168,25 @@ int main()
 						CLOSESOCKET(i);
 						continue;
 					}
+					printf("[main] message recieved: (%d) %s...\n", i, read);
 					if (i == udp_socket)
 					{
 						printf("[main] read on udpsocket...\n");
 						continue;
 					}
 					int dest_id;
+					int sender_id;
 					char message[1024];
 					memset(message, 0, sizeof(message));
 					char keyword[10];
 					memset(keyword, 0, sizeof(keyword));
 					int pred_id;
 					read[byte_received] = '\0';
-					printf("[main] read (%s) (%d) bytes: %.*s\n", read, byte_received, byte_received, read);
 					if (i == ltcp_socket){
 						printf("[main] read on ltcpsocket...\n");
 						int sID, sPORT;
 						char sIP[16];
-						if (sscanf(read, "%15[^:]:%d:%d", sIP, &sID, &sPORT) == 3)
+						if (sscanf(read, "UPDATE_FROM_LEADER:%15[^:]:%d:%d", sIP, &sID, &sPORT) == 3)
 						{
 							SOCKET new_successor_socket = setup_tcp_client(sIP, PORT);
 							if (!(ISVALIDSOCKET(new_successor_socket))){
@@ -207,44 +207,16 @@ int main()
 							if (successor_socket > socket_max)
 								socket_max = successor_socket;
 						}
-					} else if (sscanf(read, "client:%d %[^\n]", &dest_id, message) == 2)
+					} else if (sscanf(read, "CLIENT:%d:%d %[^\n]", &sender_id, &dest_id, message) == 3)
 					{
-						#if defined(_WIN32)
-							printf("[main] message (%s) (%d), (%d)\n", read, strlen(read), byte_received);
-						#else
-							printf("[main] message (%s) (%lu), (%d)\n", read, sizeof(read), byte_received);
-						#endif
-						struct ClientInfo *dest_client = NULL;
-						// check if the dest_id is group id
-						if ((dest_id > 20000) && (dest_id < 1000000))
-						{
-							message_to_group(i, dest_id, message, connected_peers);
-							continue;
-						}
-						for (int ci = 0; ci < client_count; ++ci)
-						{
-							if (clients[ci].id == dest_id)
-							{
-								dest_client = &clients[ci];
-            					printf("[main] Received from ID (%d), forwarding to ID (%d).\n", i, dest_client->id);
-								break;
-							}
-						}
-
-						if (dest_client != NULL)
-						{
-							int bytes_sent = send(dest_client->socket, read, byte_received, 0);
-            				printf("[main] Sent %d bytes to (%d)\n", bytes_sent, dest_client->id);
-						} else {
-							printf("[main] Client not found (%d).\n", dest_id);
-						}
-					} else if (sscanf(read, "%9[^:]:%d", keyword, &pred_id) == 2) {
+						handle_client_message(sender_id, dest_id, message, connected_peers);
+					} else if (sscanf(read, "ELECTION:%s:%d", keyword, &pred_id) == 2) {
 						printf("[main] keyword (%s) (%d)\n", read, pred_id);
 						int value = leader_found(read);
 						if (value != 0)
 						{
 							printf("[main] ELECTION rejected LEADER received\n");
-							sprintf(keyword, "LEADERRR");
+							sprintf(keyword, "LEADER");
 							pred_id = value;
 						}
 						if (lcr_election(keyword, pred_id, connected_peers, i, &mc_socket) == connected_peers->next->ID) {
@@ -257,7 +229,7 @@ int main()
 					} else {
 						int sID, sPORT;
 						char sIP[16];
-						if (sscanf(read, "%15[^:]:%d:%d", sIP, &sID, &sPORT) == 3){
+						if (sscanf(read, "UPDATE_FROM_LEADER:%15[^:]:%d:%d", sIP, &sID, &sPORT) == 3){
 							
 							printf("[main] update leader tcp socket: %.*s\n", byte_received, read);
 							connected_peers->next->tcp_socket = i;
@@ -784,7 +756,7 @@ SOCKET peer_mcast_receive(struct serverInfo * connected_peers, char *buf, struct
 		}
 		// send the new peer ip, id, port to the last peer
 		if (connected_peers->next){
-			snprintf(message, sizeof(message), "%s:%d:%d", inet_ntoa(sender_addr.sin_addr), new_peer_id, new_peer_port);
+			snprintf(message, sizeof(message), "UPDATE_FROM_LEADER:%s:%d:%d", inet_ntoa(sender_addr.sin_addr), new_peer_id, new_peer_port);
 			// SOCKET last_peer_socket = get_last_peer_socket(connected_peers);
 			SOCKET pred_socket = get_pred_socket(new_peer_id, connected_peers);
 			if (send(pred_socket, message, strlen(message), 0) == -1) {
@@ -998,7 +970,7 @@ int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers,
 			printf("[lcr_election] ID (%d) is equal to my ID (%d).\n", pred_id, connected_peers->ID);
 			char msg2[64];
 			memset(msg2, 0, sizeof(msg2));
-			sprintf(msg2, "LEADERRR:%d", connected_peers->ID);
+			sprintf(msg2, "ELECTION:LEADER:%d", connected_peers->ID);
 			printf("[lcr_election] sending (%s) to (%d) socket (%d)...\n", msg2, connected_peers->next->ID, connected_peers->next->next->tcp_socket);
 			if (send(connected_peers->next->next->tcp_socket, msg2, strlen(msg2), 0) == -1)
 			{
@@ -1007,7 +979,7 @@ int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers,
 			}
 			delete_server(connected_peers, connected_peers->next->ID);
 		}
-	} else if (strcmp(keyword, "LEADERRR") == 0) {
+	} else if (strcmp(keyword, "LEADER") == 0) {
 		if (pred_id == connected_peers->ID)
 		{
 			participant = 0;
@@ -1032,7 +1004,7 @@ int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers,
 			
 			char msg3[64];
 			memset(msg3, 0, sizeof(msg3));
-			sprintf(msg3, "LEADERRR:%d", pred_id);
+			sprintf(msg3, "ELECTION:LEADER:%d", pred_id);
 			if (send(connected_peers->next->next->tcp_socket, msg3, strlen(msg3), 0) == -1)
 			{
 				fprintf(stderr, "[lcr_election] send() failed. (%d)\n", GETSOCKETERRNO());
@@ -1073,20 +1045,66 @@ void remove_client_from_list(SOCKET sockfd)
 
 int leader_found(char *message)
 {
-	char *found = strstr(message, "LEADERRR:");
+	char *found = strstr(message, "LEADER:");
 	int value = 0;
 
 	if (found != NULL) {
 		char *endptr;
-		value = strtol(found + strlen("LEADERRR:"), &endptr, 10);
-		if (endptr != found + strlen("LEADERRR:")) {
-			printf("[leader_found] Found LEADERRR with ID %d\n", value);
+		value = strtol(found + strlen("LEADER:"), &endptr, 10);
+		if (endptr != found + strlen("LEADER:")) {
+			printf("[leader_found] Found LEADER with ID %d\n", value);
 			return (value);
 		} else {
-			printf("[leader_found] No integer found after LEADERRR:\n");
+			printf("[leader_found] No integer found after LEADER:\n");
 		}
 	} else {
-		printf("[leader_found] LEADERRR: not found\n");
+		printf("[leader_found] LEADER: not found\n");
 	}
 	return (value);
+}
+
+int handle_client_message(int sender_id, int dest_id, char *message, struct serverInfo *head)
+{
+	printf("[handle_client_message] Sender (%d), Dest (%d), Message (%s)\n", sender_id, dest_id, message);
+	struct ClientInfo *dest_client = NULL;
+	for (int ci = 0; ci < client_count; ++ci)
+	{
+		if (clients[ci].id == dest_id)
+		{
+			dest_client = &clients[ci];
+			printf("[handle_client_message] Destination found localy(%d).\n",dest_id);
+			break;
+		}
+	}
+
+	if (dest_client != NULL)
+	{
+		char msg[1024];
+		memset(msg, 0, sizeof(msg));
+		sprintf(msg, "[SENDER]: %d\n\t[MESSAGE]: %s\n", sender_id, message);
+		int bytes_sent = send(dest_client->socket, msg, strlen(msg), 0);
+		printf("[handle_client_message] Sent %d bytes to (%d)\n", bytes_sent, dest_client->id);
+	} else {
+		printf("[handle_client_message] Client not found (%d).\n", dest_id);
+	}
+	if (dest_id == GROUP_ID)
+	{
+		printf("[handle_client_message] group (%d) found locally (%d).\n", dest_id, head->ID);
+		char msg[1024];
+		memset(msg, 0, sizeof(msg));
+		sprintf(msg, "[SENDER]: %d\n\t[GROUP]: %d\n\t[MESSAGE]: %s\n",sender_id, GROUP_ID, message);
+		for (int ci = 0; ci < client_count; ++ci)
+		{
+			if (clients[ci].id != sender_id)
+			{
+				int bytes_sent = send(clients[ci].socket, msg, strlen(msg), 0);
+				printf("[handle_client_message] Sent %d bytes to (%d)\n", bytes_sent, clients[ci].id);
+			}
+		}
+		return (1);
+	} else {
+		// Handle if group is not found in self server
+		printf("[handle_client_message] group (%d) (%d)not found locally.\n", dest_id, GROUP_ID);
+	}
+	return (0);
 }
