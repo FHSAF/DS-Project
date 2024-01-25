@@ -150,7 +150,7 @@ int main()
 				} else if (i == mc_socket) {
 					SOCKET peer_socket = handle_mcast_receive(mc_socket, connected_peers);
 					if (ISVALIDSOCKET(peer_socket)){
-						printf("[main] The peer socket (%d)...\n", peer_socket);
+						printf("[main] The peer socket (%d)\n", peer_socket);
 						FD_SET(peer_socket, &master);
 						if (peer_socket > socket_max)
 							socket_max = peer_socket;
@@ -158,6 +158,7 @@ int main()
 				} else {
 					char read[1024];
 					memset(read, 0, sizeof(read));
+					printf("[main] read buffer before recv(%d): %s\n", i, read);
 					int byte_received = recv(i, read, 1024, 0);
 					if (byte_received < 1)
 					{
@@ -168,7 +169,7 @@ int main()
 						CLOSESOCKET(i);
 						continue;
 					}
-					printf("[main] message recieved: (%d) %s...\n", i, read);
+					printf("[main] message recieved(%d): %s\n", i, read);
 					if (i == udp_socket)
 					{
 						printf("[main] read on udpsocket...\n");
@@ -934,7 +935,6 @@ int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers,
 	printf("[lcr_election] keyword (%s) pred_id (%d) my ID (%d).\n", keyword, pred_id, connected_peers->ID);
 	if (strcmp(keyword, "VOTE") == 0)
 	{
-		printf("[lcr_election] ID (%d) received.\n", pred_id);
 		if (pred_id > connected_peers->ID)
 		{
 			participant = 1;
@@ -987,15 +987,12 @@ int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers,
 			printf("[lcr_election] I'm leader (%d)", i);
 			char message[64];
 			memset(message, 0, sizeof(message));
-			snprintf(message, sizeof(message), "%s:%d:%d", connected_peers->next->addr, connected_peers->next->ID, connected_peers->next->port);
-			// SOCKET last_peer_socket = get_last_peer_socket(connected_peers);
+			snprintf(message, sizeof(message), "UPDATE_FROM_LEADER:%s:%d:%d", connected_peers->next->addr, connected_peers->next->ID, connected_peers->next->port);
 			SOCKET pred_socket = get_pred_socket(connected_peers->next->ID, connected_peers);
-			printf("[lcr_election] sending (%s) to (%d) socket (%d)...\n", message, connected_peers->next->ID, pred_socket);
 			if (send(pred_socket, message, strlen(message), 0) == -1) {
 				fprintf(stderr, "[lcr_election] send() to last peer failed. (%d)\n", GETSOCKETERRNO());
 				return (error_return);
 			}
-			// TODO: I receive my messaeg LEADER:ID back updating ring
 		} else {
 			// the leader is found
 			printf("[lcr_election] Leader found (%d).\n", pred_id);
