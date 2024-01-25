@@ -613,7 +613,7 @@ SOCKET service_discovery(SOCKET *mc_socket, SOCKET *successor_socket, SOCKET tcp
 	printf("\t[service_discovery] broadcasting ID (%s), attempt(%d)...\n", msg, 1);
 	if (!ISVALIDSOCKET(do_multicast(mc_socket, MULTICAST_IP, msg)))
 		return (error_return);
-    for (int attempt = 0; attempt < 1; ++attempt)
+    for (int attempt = 0; attempt < 2; ++attempt)
     {
         fd_set reads;
         reads = master;
