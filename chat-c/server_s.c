@@ -941,7 +941,7 @@ int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers,
 			printf("[lcr_election] ID (%d) is greater than my ID (%d).\n", pred_id, connected_peers->ID);
 			char msg[32];
 			memset(msg, 0, sizeof(msg));
-			sprintf(msg, "ELECTION:VOTE%d", pred_id);
+			sprintf(msg, "ELECTION:VOTE:%d", pred_id);
 			if (send(connected_peers->next->next->tcp_socket, msg, strlen(msg), 0) == -1)
 			{
 				fprintf(stderr, "[lcr_election] send() failed. (%d)\n", GETSOCKETERRNO());
