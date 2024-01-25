@@ -960,6 +960,8 @@ int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers,
 			
 		} else if(pred_id < connected_peers->ID){
 			participant = 1;
+			if (connected_peers->leader == 1)
+				return (0);
 			printf("[lcr_election] ID (%d) is less than my ID (%d).\n", pred_id, connected_peers->ID);
 			char msg[32];
 			memset(msg, 0, sizeof(msg));
