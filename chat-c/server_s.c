@@ -1,11 +1,5 @@
 #include "server_s.h"
 
-#if defined(_WIN32)
-SOCKET error_return = INVALID_SOCKET;
-#else
-SOCKET error_return = -1;
-#endif
-
 
 int GROUP_ID;
 
@@ -156,103 +150,7 @@ int main()
 							socket_max = peer_socket;
 					}
 				} else {
-					char read[1024];
-					memset(read, 0, sizeof(read));
-					printf("[main] read buffer before recv(%d): %s\n", i, read);
-					int byte_received = recv(i, read, 1024, 0);
-					if (byte_received < 1)
-					{
-						handle_disconnection(connected_peers, i, udp_socket, mc_socket, ltcp_socket, successor_socket);
-						if (i == ltcp_socket)
-							ltcp_socket = error_return;
-						FD_CLR(i, &master);
-						CLOSESOCKET(i);
-						continue;
-					}
-					printf("[main] message recieved(%d): %s\n", i, read);
-					if (i == udp_socket)
-					{
-						printf("[main] read on udpsocket...\n");
-						continue;
-					}
-					int dest_id;
-					int sender_id;
-					char message[1024];
-					memset(message, 0, sizeof(message));
-					char keyword[10];
-					memset(keyword, 0, sizeof(keyword));
-					int pred_id;
-					read[byte_received] = '\0';
-					if (i == ltcp_socket){
-						printf("[main] read on ltcpsocket...\n");
-						int sID, sPORT;
-						char sIP[16];
-						if (sscanf(read, "UPDATE_FROM_LEADER:%15[^:]:%d:%d", sIP, &sID, &sPORT) == 3)
-						{
-							SOCKET new_successor_socket = setup_tcp_client(sIP, PORT);
-							if (!(ISVALIDSOCKET(new_successor_socket))){
-								fprintf(stderr, "[main] setup_tcp_client() for new successor failed. (%d)\n", GETSOCKETERRNO());
-								return (1);
-							}
-							if (connected_peers->next->next != NULL)
-							{
-								delete_server(connected_peers, connected_peers->next->next->ID);
-								append_server(&connected_peers, sID, (void *)sIP, sPORT, 0, new_successor_socket);
-								FD_CLR(successor_socket, &master);
-								CLOSESOCKET(successor_socket);
-							} else {
-								append_server(&connected_peers, sID, (void *)sIP, sPORT, 0, new_successor_socket);
-							}
-							successor_socket = new_successor_socket;
-							FD_SET(successor_socket, &master);
-							if (successor_socket > socket_max)
-								socket_max = successor_socket;
-						}
-					} else if (sscanf(read, "CLIENT:%d:%d %[^\n]", &sender_id, &dest_id, message) == 3)
-					{
-						handle_client_message(sender_id, dest_id, message, connected_peers);
-					} else if (sscanf(read, "ELECTION:%7[^:]:%d", keyword, &pred_id) == 2) {
-						printf("[main] keyword (%s) (%d)\n", read, pred_id);
-						int value = leader_found(read);
-						if (value != 0)
-						{
-							memset(keyword, 0, sizeof(keyword));
-							printf("[main] ELECTION rejected LEADER received\n");
-							sprintf(keyword, "LEADER");
-							pred_id = value;
-						}
-						if (lcr_election(keyword, pred_id, connected_peers, i, &mc_socket) == connected_peers->next->ID) {
-							FD_CLR(connected_peers->next->next->tcp_socket, &master);
-							CLOSESOCKET(connected_peers->next->next->tcp_socket);
-							display_server(connected_peers);
-							delete_server(connected_peers, connected_peers->next->next->ID);
-						}
-						fflush(stdout);
-					} else {
-						int sID, sPORT;
-						char sIP[16];
-						if (sscanf(read, "UPDATE_FROM_LEADER:%15[^:]:%d:%d", sIP, &sID, &sPORT) == 3){
-							
-							printf("[main] update leader tcp socket: %.*s\n", byte_received, read);
-							connected_peers->next->tcp_socket = i;
-							remove_client_from_list(i);
-							ltcp_socket = i;
-						} else {
-						printf("[main] read on socket (%d) %s...\n", i, read);
-						continue;
-						}
-
-						// SOCKET j;
-						// for (j = 1; j <= socket_max; ++j)
-						// {
-						// 	if (FD_ISSET(j, &master)) {
-						// 		if (j == socket_listen || j == i)
-						// 			continue;
-						// 		else
-						// 			send(j, read, byte_received, 0);
-						// 	}
-						// }
-					}
+					handle_socket_change(&master, i, udp_socket, &mc_socket, ltcp_socket, successor_socket, &socket_max, connected_peers);
 				}
 			}
 		}
@@ -273,6 +171,10 @@ int main()
 
     return 0;
 }
+
+
+
+
 
 void assign_client_info(SOCKET socket_client, struct sockaddr_storage client_address, int temp)
 {
@@ -596,7 +498,7 @@ SOCKET service_discovery(SOCKET *mc_socket, SOCKET *successor_socket, SOCKET tcp
     SOCKET socket_max = tcp_socket;
 
     char msg[32];
-    sprintf(msg, "%d:%d", head->ID, 4041);
+    sprintf(msg, "LEADER_DISCOVERY:%d:%d\n\n", head->ID, 4041);
 	SOCKET socket_client;
 	char address_buffer[100];
 	char service_buffer[100];
@@ -735,7 +637,7 @@ SOCKET handle_mcast_receive(SOCKET mc_socket, struct serverInfo * connected_peer
 SOCKET peer_mcast_receive(struct serverInfo * connected_peers, char *buf, struct sockaddr_in sender_addr) {
 
     int new_peer_id, new_peer_port;
-    if (sscanf(buf, "%d:%d", &new_peer_id, &new_peer_port) == 2) {
+    if (sscanf(buf, "LEADER_DISCOVERY:%d:%d", &new_peer_id, &new_peer_port) == 2) {
 		char port[6];
 		sprintf(port, "%d", new_peer_port);
 		SOCKET ctcp_socket = setup_tcp_client(inet_ntoa(sender_addr.sin_addr), port);
@@ -751,7 +653,7 @@ SOCKET peer_mcast_receive(struct serverInfo * connected_peers, char *buf, struct
 			sprintf(message, "%d:%s:%d:%d", connected_peers->ID, successor->addr, successor->port, successor->ID);
 		}else
 			snprintf(message, sizeof(message), "%d:%s:%d:%d", connected_peers->ID, "0.0.0.0", '0', connected_peers->leader);
-		
+		printf("[peer_mcast_receive] sending (%s) ...\n", message);
         if (send(ctcp_socket, message, strlen(message), 0) == -1) {
 			fprintf(stderr, "[peer_mcast_receive] send() failed. (%d)\n", GETSOCKETERRNO());
 			return (error_return);
@@ -760,6 +662,7 @@ SOCKET peer_mcast_receive(struct serverInfo * connected_peers, char *buf, struct
 		if (connected_peers->next){
 			snprintf(message, sizeof(message), "UPDATE_FROM_LEADER:%s:%d:%d", inet_ntoa(sender_addr.sin_addr), new_peer_id, new_peer_port);
 			// SOCKET last_peer_socket = get_last_peer_socket(connected_peers);
+			printf("[peer_mcast_receive] sending (%s) ...\n", message);
 			SOCKET pred_socket = get_pred_socket(new_peer_id, connected_peers);
 			if (send(pred_socket, message, strlen(message), 0) == -1) {
 				fprintf(stderr, "[peer_mcast_receive] send() to last peer failed. (%d)\n", GETSOCKETERRNO());
