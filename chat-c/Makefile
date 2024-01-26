@@ -13,14 +13,13 @@
 
 CC		= gcc
 
-CFLAGS	= -Wextra -Werror
+CFLAGS	= -Wall -Wextra -Werror
 
 sSRC		= server_s.c server_struct.c socket_changes.c
 cSRC		= client_s.c
 
 sOBJ		= $(sSRC:.c=.o)
 cOBJ		= $(cSRC:.c=.o)
-LIBS		= -liphlpapi -lws2_32
 sNAME	= srvr
 cNAME	= client_s
 NAME	= tcpc
@@ -30,15 +29,15 @@ NAME	= tcpc
 
 ${NAME} :	${sOBJ} ${cOBJ}
 	@echo "compiling and linking files"
-	${CC} ${CFLAGS} -o ${sNAME} ${sOBJ} ${LIBS}
-	${CC} ${CFLAGS} -o ${cNAME} ${cOBJ} ${LIBS}
+	${CC} ${CFLAGS} -o ${sNAME} ${sOBJ}
+	${CC} ${CFLAGS} -o ${cNAME} ${cOBJ}
 
 clean:
-	del /F ${sOBJ}
-	del /F ${cOBJ}
+	rm -f ${sOBJ}
+	rm -f ${cOBJ}
 
 fclean:	clean
-	del /F ${sNAME}.exe
-	del /F ${cNAME}.exe
+	rm -f ${sNAME}
+	rm -f ${cNAME}
 
 .PHONY: clean fclean
