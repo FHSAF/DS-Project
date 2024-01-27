@@ -170,7 +170,7 @@ SOCKET peer_mcast_receive(struct serverInfo * connected_peers, char *buf, struct
 		sendBuf[sizeof(sendBuf) - 1] = '\0';
 		memcpy(sendBuf, message, strlen(message));
 
-		printf("[peer_mcast_receive] sending successor to new server(%d) (%s) ...\n", new_peer_id, sendBuf);
+		printf("[peer_mcast_receive] sending successor to new server (%d) (%ld) (%s) ...\n", new_peer_id, sizeof(sendBuf), message);
         if (send(ctcp_socket, sendBuf, strlen(sendBuf), 0) == -1) {
 			fprintf(stderr, "[peer_mcast_receive] send() failed. (%d)\n", GETSOCKETERRNO());
 			return (error_return);
@@ -187,7 +187,7 @@ SOCKET peer_mcast_receive(struct serverInfo * connected_peers, char *buf, struct
 			memset(sendBuf, 'x', sizeof(sendBuf));
 			sendBuf[sizeof(sendBuf) - 1] = '\0';
 			memcpy(sendBuf, message, strlen(message));
-			printf("[peer_mcast_receive] sending update (%s) to predecessro (%d) ...\n", sendBuf, predecessor->ID);
+			printf("[peer_mcast_receive] sending update (%lu) bytes (%s) to predecessor (%d) ...\n", strlen(sendBuf), message, predecessor->ID);
 			if (send(predecessor->tcp_socket, sendBuf, strlen(sendBuf), 0) == -1) {
 				fprintf(stderr, "[peer_mcast_receive] send() to last peer failed. (%d)\n", GETSOCKETERRNO());
 				return (error_return);
