@@ -171,3 +171,23 @@ ServerInfo * get_successor(int id, struct serverInfo *head)
 	}
 	return (head->next);
 }
+
+ServerInfo * get_predecessor(int id, struct serverInfo *head)
+{
+	struct serverInfo * current = head;
+	while (current->next != NULL){
+		if (current->next->ID == id)
+			return (current);
+		else
+			current = current->next;
+	}
+	return (NULL);
+}
+
+ServerInfo * get_last_server(struct serverInfo *head)
+{
+	struct serverInfo * current = head;
+	while (current->next != NULL)
+		current = current->next;
+	return (current);
+}

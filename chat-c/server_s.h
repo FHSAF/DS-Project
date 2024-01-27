@@ -45,16 +45,23 @@
 #include <ctype.h>
 #include <time.h>
 
-#define PORT "4041"
+//#define PORT "4041"
 #define MAX_CONNECTION 10
-#define BUFFER_SIZE 4096
-#define SERVER_IP "192.168.0.100"
+//#define SERVER_IP "127.0.0.1"
 #define NEXT_SERVER_IP "127.0.0.1"
 #define NEXT_SERVER_PORT "6970"
 #define BROADCAST_ADDRESS "192.168.0.255"
 #define BROADCAST_PORT "3938"
 #define MULTICAST_IP "239.255.255.250"
 #define MULTICAST_PORT "12345"
+#define BUFFER_SIZE 256
+
+extern char sendBuf[BUFFER_SIZE];
+extern int GROUP_ID;
+extern int client_count;
+extern char PORT[6];
+extern char SERVER_IP[16];
+
 
 typedef struct groupInfo {
 	int id;
@@ -100,16 +107,15 @@ void append_server_sorted(struct serverInfo **head, int id, void *address, int p
 void send_ele_msg(ServerInfo *head);
 SOCKET get_pred_socket(int id, struct serverInfo *head);
 ServerInfo * get_successor(int id, struct serverInfo *head);
-int update_ring(struct serverInfo *head);
+int update_ring(struct serverInfo *head, ServerInfo *pred_i, ServerInfo *connected_peers);
 int message_to_group(SOCKET sender_socket, int group_id, char *msg, struct serverInfo *head);
 int get_client_id(SOCKET socket);
-int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers, SOCKET i, SOCKET *mc_socket);
+int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers, SOCKET i);
 void remove_client_from_list(SOCKET sockfd);
 int leader_found(char *message);
 int handle_client_message(int sender_id, int dest_id, char *message, struct serverInfo *head);
-void handle_socket_change(fd_set *master, SOCKET i, SOCKET udp_socket, SOCKET *mc_socket, SOCKET ltcp_socket, SOCKET successor_socket, SOCKET *socket_max, ServerInfo *connected_peers);
-
-
+void handle_socket_change(fd_set *master, SOCKET i, SOCKET *udp_socket, SOCKET *mc_socket, SOCKET *ltcp_socket, SOCKET *successor_socket, SOCKET *socket_max, ServerInfo *connected_peers);
+int getRadomId(int min, int max);
 
 // Data structure of servers to keep
 int server_info_exist(int id, struct serverInfo *head);
@@ -119,5 +125,7 @@ void append_server(struct serverInfo **head, int id, void *address, int port, in
 void display_server(struct serverInfo *head);
 void free_server_storage(struct serverInfo *head);
 ServerInfo * ist_peer_server(SOCKET sockfd, struct serverInfo *head);
+ServerInfo * get_predecessor(int id, struct serverInfo *head);
+ServerInfo * get_last_server(struct serverInfo *head);
 
 #endif 

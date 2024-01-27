@@ -15,8 +15,9 @@ CC		= gcc
 
 CFLAGS	= -Wall -Wextra -Werror
 
-sSRC		= server_s.c server_struct.c socket_changes.c
-cSRC		= client_s.c
+sSRC		= server_s.c server_struct.c socket_changes.c election_lcr.c chat_client.c disconnection_handler.c \
+			socket_setup.c udp.c multicast.c service_discovery.c
+cSRC		= client/client_s.c
 
 sOBJ		= $(sSRC:.c=.o)
 cOBJ		= $(cSRC:.c=.o)

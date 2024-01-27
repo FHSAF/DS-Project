@@ -1,4 +1,4 @@
-#include "server_s.h"
+#include "../server_s.h"
 
 #if defined(_WIN32)
 #include <conio.h>
