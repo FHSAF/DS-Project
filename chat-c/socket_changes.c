@@ -2,10 +2,10 @@
 
 void handle_socket_change(fd_set *master, SOCKET i, SOCKET *udp_socket, SOCKET *mc_socket, SOCKET *ltcp_socket, SOCKET *successor_socket, SOCKET *socket_max, ServerInfo *connected_peers)
 {
-	char readBuf[BUFFER_SIZE+1];
+	char readBuf[BUFFER_SIZE];
 	memset(readBuf, 0, sizeof(readBuf));
 
-	int byte_received = recv(i, readBuf, BUFFER_SIZE, 0);
+	int byte_received = recv(i, readBuf, BUFFER_SIZE-1, 0);
 	if (byte_received < 1)
 	{
 		handle_disconnection(connected_peers, i, *udp_socket, *mc_socket, *ltcp_socket, *successor_socket);
@@ -16,8 +16,6 @@ void handle_socket_change(fd_set *master, SOCKET i, SOCKET *udp_socket, SOCKET *
 		printf("[handle_socker_change]] socket (%d) closed\n", i);
 		return;
 	}
-
-	printf("[main] message recieved readBuf(%d): (%s)\n", i, readBuf);
 	char read[BUFFER_SIZE];
 	memset(read, 0, sizeof(read));
 
@@ -28,7 +26,7 @@ void handle_socket_change(fd_set *master, SOCKET i, SOCKET *udp_socket, SOCKET *
 		return;
 	}
 	memcpy(read, readBuf, end - readBuf);
-	printf("[main] message recieved read(%d): (%s)\n", i, read);
+	printf("[main] message recieved read(%lu) bytes: (%s)\n", strlen(readBuf), read);
 
 	if (i == *udp_socket)
 	{
