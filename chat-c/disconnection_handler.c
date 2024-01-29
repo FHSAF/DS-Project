@@ -57,6 +57,7 @@ void handle_disconnection(struct serverInfo * head, SOCKET i, SOCKET udp_socket,
 		
 	} else {
 		printf("[handle_disconnection] Client (%d) disconnected...\n", i);
+		
 		remove_client_from_list(i);
 	}
 }

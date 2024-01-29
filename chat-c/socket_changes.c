@@ -71,9 +71,9 @@ void handle_socket_change(fd_set *master, SOCKET i, SOCKET *udp_socket, SOCKET *
 		if (*successor_socket > *socket_max)
 			*socket_max = *successor_socket;
 
-	} else if (sscanf(read, "CLIENT:%d:%d %[^\n]", &sender_id, &dest_id, message) == 3)
+	} else if (sscanf(read, "CLIENT:%d:%d:%[^\n]", &sender_id, &dest_id, message) == 3)
 	{
-		handle_client_message(sender_id, dest_id, message, connected_peers);
+		handle_client_message(sender_id, dest_id, message, connected_peers, i);
 	} else if (sscanf(read, "ELECTION:%7[^:]:%d", keyword, &pred_id) == 2) {
 		printf("[main] keyword (%s) (%d)\n", read, pred_id);
 		int value = leader_found(read);

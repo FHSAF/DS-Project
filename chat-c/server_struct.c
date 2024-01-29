@@ -191,3 +191,71 @@ ServerInfo * get_last_server(struct serverInfo *head)
 		current = current->next;
 	return (current);
 }
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+// Append a new client to the end of the list
+TcpClient* append_tcp_client(TcpClient* head, SOCKET socket_fd, char* IP, int PORT) {
+    TcpClient* newClient = (TcpClient*)malloc(sizeof(TcpClient));
+    newClient->socket_fd = socket_fd;
+    strncpy(newClient->IP, IP, sizeof(newClient->IP) - 1);
+    newClient->IP[sizeof(newClient->IP) - 1] = '\0';  // Ensure null-termination
+    newClient->PORT = PORT;
+    newClient->next = NULL;
+
+    if (head == NULL) {
+        return newClient;
+    } else {
+        TcpClient* current = head;
+        while (current->next != NULL) {
+            current = current->next;
+        }
+        current->next = newClient;
+        return head;
+    }
+}
+
+
+TcpClient* delete_tcp_client(TcpClient* head, SOCKET socket_fd) {
+    TcpClient* current = head;
+    TcpClient* prev = NULL;
+
+    while (current != NULL) {
+        if (current->socket_fd == socket_fd) {
+            if (prev == NULL) {
+                head = current->next;
+            } else {
+                prev->next = current->next;
+            }
+            free(current);
+            return head;
+        }
+        prev = current;
+        current = current->next;
+    }
+
+    return head;  // socket_fd not found
+}
+
+
+TcpClient* search_tcp_client(TcpClient* head, SOCKET socket_fd) {
+    TcpClient* current = head;
+    while (current != NULL) {
+        if (current->socket_fd == socket_fd) {
+            return current;
+        }
+        current = current->next;
+    }
+    return NULL;  // socket_fd not found
+}
+
+
+void display(TcpClient* head) {
+    TcpClient* current = head;
+    while (current != NULL) {
+        printf("Socket FD: %d, IP: %s, Port: %d\n", current->socket_fd, current->IP, current->PORT);
+        current = current->next;
+    }
+}

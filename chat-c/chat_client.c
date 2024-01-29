@@ -3,7 +3,7 @@
 struct ClientInfo clients[MAX_CONNECTION];
 struct ClientInfo *tempClient;
 
-void assign_client_info(SOCKET socket_client, struct sockaddr_storage client_address, int temp)
+void assign_client_info(SOCKET socket_client, struct sockaddr_storage client_address)
 {
 	socklen_t addr_len = sizeof(client_address);
 	char client_ip[NI_MAXHOST];
@@ -22,31 +22,54 @@ void assign_client_info(SOCKET socket_client, struct sockaddr_storage client_add
 		CLOSESOCKET(socket_client);
 		return;
 	}
-	int client_id = getRadomId(2000000, 10000000)*(++client_count);
+	
 	struct ClientInfo *client_info = (struct ClientInfo *)malloc(sizeof(struct ClientInfo));
 	if (client_info == NULL)
 	{
 		printf("[]Memory allocation failed\n");
 		exit(1);
 	}
-	printf("Client id is (%d).\n", client_id);
-	client_info->id = client_id;
+	printf("Client id is (%d).\n", 0);
+	client_info->id = 0;
 	client_info->socket = socket_client;
 	client_info->addr = client_info;
 	memcpy(client_info->ip_addr, client_ip, sizeof(client_info->ip_addr));
-	if (temp == 0)
-	{
-		clients[client_count - 1] = *client_info;
-		send(socket_client, (void *)&client_id, sizeof(client_id), 0);
-		printf("Assigned ID (%d) to (%d)\n", client_id, client_count);
-	} else {
-		tempClient = client_info;
-	}
+	// if (temp == 0)
+	// {
+	// 	clients[client_count - 1] = *client_info;
+	// 	send(socket_client, (void *)&client_id, sizeof(client_id), 0);
+	// 	printf("Assigned ID (%d) to (%d)\n", client_id, client_count);
+	// } else {
+	// 	tempClient = client_info;
+	// }
 }
 
-int handle_client_message(int sender_id, int dest_id, char *message, struct serverInfo *head)
+int handle_client_message(int sender_id, int dest_id, char *message, struct serverInfo *head, SOCKET i)
 {
+	
 	printf("[handle_client_message] Sender (%d), Dest (%d), Message (%s)\n", sender_id, dest_id, message);
+	if ((dest_id == sender_id) && (strcmp(message, "GET_ID") == 0))
+	{
+		char msg[BUFFER_SIZE];
+		memset(msg, 0, sizeof(msg));
+		memset(msg, 0, BUFFER_SIZE);
+		int client_id = getRadomId(2000000, 10000000)*(++client_count);
+		sprintf(msg, "ID:%d\n\n", client_id);
+
+		memset(sendBuf, 'x', sizeof(sendBuf)-1);
+		sendBuf[sizeof(sendBuf) - 1] = '\0';
+		memcpy(sendBuf, msg, strlen(msg));
+		printf("[handle_client_msg] Client id is (%d).\n", client_id);
+		if (send(i, sendBuf, strlen(sendBuf), 0) < 1)
+		{
+			printf("[handle_client_msg] Sending ID failed.\n");
+			CLOSESOCKET(i);
+			return (-1);
+		}
+		printf("[handle_client_msg] ID request (%lu) Bytes (%s) sent.\n", strlen(sendBuf), msg);
+		return (0);
+	}
+
 	struct ClientInfo *dest_client = NULL;
 	for (int ci = 0; ci < client_count; ++ci)
 	{
@@ -133,7 +156,7 @@ void remove_client_from_list(SOCKET sockfd)
 	{
 		if (clients[ci].socket == sockfd)
 		{
-			printf("Client with (%d) disconnected.\n", clients[ci].id);
+			printf("Client with ID:(%d) disconnected.\n", clients[ci].id);
 			free(clients[ci].addr);
 			// printf("freed %p \n", clients[ci].addr);
 			for (int cj = ci; cj < client_count - 1; ++cj)

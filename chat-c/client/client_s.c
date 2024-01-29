@@ -60,11 +60,39 @@ int main(int argc, char *argv[]) {
 
     int client_id;
     freeaddrinfo(peer_address);
-    #if defined(_WIN32)
-        if (recv(socket_peer, (char*)&client_id, sizeof(client_id), 0) < 1)
-    #else
-    if (recv(socket_peer, &client_id, sizeof(client_id), 0) < 1)
-    #endif
+
+    char Buffer[BUFFER_SIZE];
+
+    char message[BUFFER_SIZE];
+    memset(message, 0, BUFFER_SIZE);
+    sprintf(message, "CLIENT:%d:%d:GET_ID\n\n", 0, 0);
+
+    memset(Buffer, 'x', sizeof(Buffer)-1);
+    Buffer[sizeof(Buffer) - 1] = '\0';
+    memcpy(Buffer, message, strlen(message));
+
+    printf("Sending ID request...\n");
+
+    if (send(socket_peer, Buffer, strlen(Buffer), 0) < 1) {
+        printf("Sending ID request failed.\n");
+        CLOSESOCKET(socket_peer);
+        #if defined(_WIN32)
+            WSACleanup();
+        #endif
+        return (0);
+    }
+    printf("ID request (%lu) (%s) sent.\n", strlen(Buffer), message);
+
+    // #if defined(_WIN32)
+    //     if (recv(socket_peer, (char*)&client_id, sizeof(client_id), 0) < 1)
+    // #else
+    // if (recv(socket_peer, &client_id, sizeof(client_id), 0) < 1)
+    // #endif
+    memset(message, 0, BUFFER_SIZE);
+    memset(Buffer, 0, sizeof(Buffer));
+    int received_bytes = 0;
+
+    if ((received_bytes = recv(socket_peer, Buffer, BUFFER_SIZE-1, 0)) < 1)
     {
         printf("Receing ID failed.\n");
         CLOSESOCKET(socket_peer);
@@ -73,6 +101,26 @@ int main(int argc, char *argv[]) {
         #endif
         return (0);
     }
+
+	char *end = strstr(Buffer, "\n\n");
+	if (end == NULL)
+	{
+		printf("[main] end of message not found\n");
+		return (0);
+	}
+	memcpy(message, Buffer, end - Buffer);
+	printf("[main] message recieved (%lu) Bytes: (%s)\n", strlen(Buffer), message);
+
+    if (sscanf(message, "ID:%d", &client_id) != 1)
+    {
+        printf("Receing ID failed.\n");
+        CLOSESOCKET(socket_peer);
+        #if defined(_WIN32)
+            WSACleanup();
+        #endif
+        return (0);
+    }
+
     printf("Connected with assigned ID: %d\n", client_id);
     printf("Enter <id> <message> to send (empty line to quit):\n----->");
     fflush(stdout);

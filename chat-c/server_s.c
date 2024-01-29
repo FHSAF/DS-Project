@@ -44,6 +44,7 @@ int main()
 	fd_set master;
 	GROUP_ID = getRadomId(20000, 1000000);
 	printf("[main] Group ID (%d).\n", GROUP_ID);
+	// TcpClient* tcp_clients = NULL;
 
     SOCKET socket_listen = setup_tcp_socket();
     if (!ISVALIDSOCKET(socket_listen))
@@ -133,24 +134,7 @@ int main()
 			{
 				if (i == socket_listen)
 				{
-					struct sockaddr_storage client_address;
-					socklen_t client_len = sizeof(client_address);
-					SOCKET socket_client = accept(socket_listen, (struct sockaddr*)&client_address, &client_len);
-					if (!ISVALIDSOCKET(socket_client))
-					{
-						fprintf(stderr, "accept() failed. (%d)\n", GETSOCKETERRNO());
-						return (1);
-					}
-
-					FD_SET(socket_client, &master);
-					if (socket_client > socket_max)
-					{
-						socket_max = socket_client;
-					}
-					char address_buffer[100];
-					getnameinfo((struct sockaddr*)&client_address, client_len, address_buffer, sizeof(address_buffer), 0, 0, NI_NUMERICHOST);
-					printf("[main] New connection from %s\n", address_buffer);
-					assign_client_info(socket_client, client_address, 0);
+					accept_new_client(socket_listen, &master, &socket_max);
 				} else if (i == mc_socket) {
 
 					SOCKET peer_socket = handle_mcast_receive(mc_socket, connected_peers);
@@ -191,4 +175,31 @@ int getRadomId(int min, int max) {
     int randomId = rand() % (max - min + 1) + min;
 
     return randomId;
+}
+
+void accept_new_client(SOCKET socket_listen, fd_set *master, SOCKET *socket_max)
+{
+	struct sockaddr_storage client_address;
+	socklen_t client_len = sizeof(client_address);
+	SOCKET socket_client = accept(socket_listen, (struct sockaddr*)&client_address, &client_len);
+	if (!ISVALIDSOCKET(socket_client))
+	{
+		fprintf(stderr, "accept() failed. (%d)\n", GETSOCKETERRNO());
+		return;
+	}
+
+	FD_SET(socket_client, master);
+	if (socket_client > *socket_max)
+	{
+		*socket_max = socket_client;
+	}
+	char address_buffer[100];
+	char service_buffer[100];
+	getnameinfo(((struct sockaddr *)&client_address),
+			client_len,
+			address_buffer, sizeof(address_buffer),
+			service_buffer, sizeof(service_buffer),
+			NI_NUMERICHOST | NI_NUMERICSERV);
+	printf("[accept_new_client] New connection from %s:%s, socket_fd: %d.\n", address_buffer, service_buffer, socket_client);
+	assign_client_info(socket_client, client_address);
 }

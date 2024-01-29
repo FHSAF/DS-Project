@@ -79,6 +79,12 @@ typedef struct serverInfo {
 	struct serverInfo *next;
 } ServerInfo;
 
+typedef struct tcpClient { SOCKET socket_fd; char IP[16]; int PORT; struct tcpClient * next; } TcpClient;
+TcpClient* append_tcp_client(TcpClient* head, SOCKET socket_fd, char* IP, int PORT);
+TcpClient* delete_tcp_client(TcpClient* head, SOCKET socket_fd);
+TcpClient* search_tcp_client(TcpClient* head, SOCKET socket_fd);
+void display(TcpClient* head);
+
 typedef struct ClientInfo {
 	int id;
 	SOCKET socket;
@@ -87,9 +93,10 @@ typedef struct ClientInfo {
 } clientInfo;
 
 
+void accept_new_client(SOCKET socket_listen, fd_set *master, SOCKET *socket_max);
 void send_server_info(SOCKET dest, ServerInfo *myInfo);
 SOCKET setup_tcp_socket();
-void assign_client_info(SOCKET socket_client, struct sockaddr_storage client_address, int temp);
+void assign_client_info(SOCKET socket_client, struct sockaddr_storage client_address);
 SOCKET setup_udp_socket(char * sock_ip, char *sock_port);
 int leader_election();
 void udp_multicast(char *msg, struct serverInfo *head, SOCKET udp_sockfd);
@@ -113,7 +120,7 @@ int get_client_id(SOCKET socket);
 int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers, SOCKET i);
 void remove_client_from_list(SOCKET sockfd);
 int leader_found(char *message);
-int handle_client_message(int sender_id, int dest_id, char *message, struct serverInfo *head);
+int handle_client_message(int sender_id, int dest_id, char *message, struct serverInfo *head, SOCKET i);
 void handle_socket_change(fd_set *master, SOCKET i, SOCKET *udp_socket, SOCKET *mc_socket, SOCKET *ltcp_socket, SOCKET *successor_socket, SOCKET *socket_max, ServerInfo *connected_peers);
 int getRadomId(int min, int max);
 
