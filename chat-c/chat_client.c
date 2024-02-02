@@ -34,14 +34,9 @@ void assign_client_info(SOCKET socket_client, struct sockaddr_storage client_add
 	client_info->socket = socket_client;
 	client_info->addr = client_info;
 	memcpy(client_info->ip_addr, client_ip, sizeof(client_info->ip_addr));
-	// if (temp == 0)
-	// {
-	// 	clients[client_count - 1] = *client_info;
-	// 	send(socket_client, (void *)&client_id, sizeof(client_id), 0);
-	// 	printf("Assigned ID (%d) to (%d)\n", client_id, client_count);
-	// } else {
-	// 	tempClient = client_info;
-	// }
+
+	clients[client_count] = *client_info;
+	client_count++;
 }
 
 int handle_client_message(int sender_id, int dest_id, char *message, struct serverInfo *head, SOCKET i)
@@ -53,21 +48,22 @@ int handle_client_message(int sender_id, int dest_id, char *message, struct serv
 		char msg[BUFFER_SIZE];
 		memset(msg, 0, sizeof(msg));
 		memset(msg, 0, BUFFER_SIZE);
-		int client_id = getRadomId(1000, 10000)*(++client_count);
+		int client_id = getRadomId(1000, 10000)*(client_count);
 		for (int ci = 0; ci < client_count; ++ci)
 		{
 			if (clients[ci].socket == i)
 			{
 				clients[ci].id = client_id;
+				printf("[handle_client_msg] Client(%d) id is (%d).\n",client_count, clients[ci].id);
 			}
 		}
 		
-		sprintf(msg, "ID:%d:GROUP_ID:%d:GROUP_IP:%s:GROUP_PORT:%d\n\n", client_id, GROUP_ID, MULTICAST_IP, randomPort);
-
+		sprintf(msg, "ORDER:%d:ID:%d:GROUP_ID:%d:GROUP_IP:%s:GROUP_PORT:%d\n\n", 
+					clk_index, client_id, GROUP_ID, MULTICAST_IP, randomPort);
+		clk_index++;
 		memset(sendBuf, 'x', sizeof(sendBuf)-1);
 		sendBuf[sizeof(sendBuf) - 1] = '\0';
 		memcpy(sendBuf, msg, strlen(msg));
-		printf("[handle_client_msg] Client id is (%d).\n", client_id);
 		if (send(i, sendBuf, strlen(sendBuf), 0) < 1)
 		{
 			printf("[handle_client_msg] Sending ID failed.\n");

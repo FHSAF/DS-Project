@@ -4,6 +4,7 @@
 int GROUP_ID;
 char sendBuf[BUFFER_SIZE];
 int client_count = 0;
+int clk_index = 0;
 char PORT[6];
 char SERVER_IP[16];
 

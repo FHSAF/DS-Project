@@ -61,6 +61,7 @@ extern int GROUP_ID;
 extern int client_count;
 extern char PORT[6];
 extern char SERVER_IP[16];
+extern int clk_index;
 
 
 typedef struct groupInfo {
