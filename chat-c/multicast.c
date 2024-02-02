@@ -49,7 +49,7 @@ SOCKET join_multicast(char *multicast_ip, char * mPORT)
 	// 	// handle error
 	// }
     freeaddrinfo(bind_addr); // Free the linked-list
-
+	printf("\n[join_multicast] joined multicast group (%s:%s)\n\n", multicast_ip, mPORT);
     return (mc_socket);
 }
 
