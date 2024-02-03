@@ -626,7 +626,7 @@ char * get_service_info(const char *host, const char *port, const char *device_i
 	hints.ai_socktype = SOCK_DGRAM;
 	hints.ai_flags = AI_PASSIVE;
     struct addrinfo *udp_bind_address;
-    if (getaddrinfo(device_ip, "6969", &hints, &udp_bind_address)) {
+    if (getaddrinfo(device_ip, "41411", &hints, &udp_bind_address)) {
         fprintf(stderr, "getaddrinfo() failed. (%d)\n", GETSOCKETERRNO());
         return (0);
     }
@@ -679,6 +679,14 @@ char * get_service_info(const char *host, const char *port, const char *device_i
             NI_NUMERICHOST);
     printf("%s:%s\n", address_buffer_remote, service_buffer_remote);
 
+    printf("[UDP] Binding socket to local address...\n");
+	if (bind(socket_listen, udp_bind_address->ai_addr, udp_bind_address->ai_addrlen))
+	{
+		fprintf(stderr, "[UDP] bind() failed. (%d)\n", GETSOCKETERRNO());
+		CLOSESOCKET(socket_listen);
+		return (0);
+	}
+
 
 
     if (sendto(socket_listen, message, BUFFER_SIZE, 0, remote_address->ai_addr, remote_address->ai_addrlen) == -1) {
@@ -698,17 +706,13 @@ char * get_service_info(const char *host, const char *port, const char *device_i
     //     return (0);
     // }
 
-    printf("[UDP] Binding socket to local address...\n");
-	if (bind(socket_listen, udp_bind_address->ai_addr, udp_bind_address->ai_addrlen))
-	{
-		fprintf(stderr, "[UDP] bind() failed. (%d)\n", GETSOCKETERRNO());
-		CLOSESOCKET(socket_listen);
-		return (0);
-	}
+	struct sockaddr_storage sender_address;
+	socklen_t sender_len = sizeof(sender_address);
+    
     memset(Buffer, 0, sizeof(Buffer));
     char *clean_message = NULL;
     printf("[UDP] Wiating for response form elader...\n");
-    if (recvfrom(socket_listen, Buffer, BUFFER_SIZE, 0, udp_bind_address->ai_addr, &udp_bind_address->ai_addrlen) == -1) {
+    if (recvfrom(socket_listen, Buffer, BUFFER_SIZE, 0, (struct sockaddr *)&sender_address, &sender_len) == -1) {
         fprintf(stderr, "recvfrom() failed. (%d)\n", GETSOCKETERRNO());
         return (0);
     }
@@ -719,6 +723,7 @@ char * get_service_info(const char *host, const char *port, const char *device_i
         return (0);
     }
 	freeaddrinfo(udp_bind_address);
+    freeaddrinfo(remote_address);
     CLOSESOCKET(socket_listen);
 	return(clean_message);
 }
