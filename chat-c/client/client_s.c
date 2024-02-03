@@ -648,6 +648,14 @@ char * get_service_info(const char *host, const char *port)
         fprintf(stderr, "[UDP] socket() failed. (%d)\n", GETSOCKETERRNO());
         return (0);
     }
+
+    printf("[TCP] Binding socket to remote address...\n");
+	if (bind(socket_listen, udp_bind_address->ai_addr, udp_bind_address->ai_addrlen))
+	{
+		fprintf(stderr, "[TCP] bind() failed. (%d)\n", GETSOCKETERRNO());
+		return (0);
+	}
+	freeaddrinfo(udp_bind_address);
     
     memset(message, 0, BUFFER_SIZE);
     sprintf(message, "NEW_CLIENT\n\n");
@@ -663,18 +671,18 @@ char * get_service_info(const char *host, const char *port)
         fprintf(stderr, "sendto() failed. (%d)\n", GETSOCKETERRNO());
         return (0);}
 
-    #if defined(_WIN32)
-    char broadcastEnable = '1';
-    #else
-    int broadcastEnable = 1;
-    #endif
-	printf("[UDP] enabling broadcast...\n");
-    if (setsockopt(socket_listen, SOL_SOCKET, SO_BROADCAST, &broadcastEnable, sizeof(broadcastEnable)) == -1)
-    {
-        fprintf(stderr, "[UDP] setsocktopt() failed. (%d)\n", GETSOCKETERRNO());
-		CLOSESOCKET(socket_listen);
-        return (0);
-    }
+    // #if defined(_WIN32)
+    // char broadcastEnable = '1';
+    // #else
+    // int broadcastEnable = 1;
+    // #endif
+	// printf("[UDP] enabling broadcast...\n");
+    // if (setsockopt(socket_listen, SOL_SOCKET, SO_BROADCAST, &broadcastEnable, sizeof(broadcastEnable)) == -1)
+    // {
+    //     fprintf(stderr, "[UDP] setsocktopt() failed. (%d)\n", GETSOCKETERRNO());
+	// 	CLOSESOCKET(socket_listen);
+    //     return (0);
+    // }
 
     memset(Buffer, 0, sizeof(Buffer));
     char *clean_message = NULL;
