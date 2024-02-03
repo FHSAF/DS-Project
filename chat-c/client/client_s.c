@@ -6,6 +6,9 @@ char userInput[BUFFER_SIZE - 100];
 
 char GROUP_IP[16];
 char GROUP_PORT[6];
+char MY_SERVER_IP[16];
+char MY_SERVER_PORT[6];
+
 int mode = 0;
 int GROUP_ID = 0;
 int SELF_ID = 0;
@@ -41,15 +44,27 @@ int main(int argc, char *argv[]) {
     fd_set master;
     FD_ZERO(&master);
 
-    SOCKET udp_socket = setup_udp_socket(argv[1], argv[2]);
-    if (!ISVALIDSOCKET(udp_socket)) {
-        fprintf(stderr, "setup_udp_socket() failed.\n");
-        return 1;
+    char *service_info = get_service_info(argv[1], argv[2]);
+    if (service_info == NULL)
+    {
+        printf("[main] get_service_info() failed.\n");
+        return (0);
     }
-    FD_SET(udp_socket, &master);
+    int sPORT;
+    if (sscanf(service_info, "LEADER:YOUR_ID:%d:SERVER_IP:%15[^:]:SERVER_PORT:%d", &SELF_ID, MY_SERVER_IP, &sPORT) != 3)
+    {
+        printf("[main] sscanf() failed.\n");
+        return (0);
+    }
+    sprintf(MY_SERVER_PORT, "%d", sPORT);
+    printf("[main] MY_SERVER_IP: %s\n", MY_SERVER_IP);
+    printf("[main] MY_SERVER_PORT: %s\n", MY_SERVER_PORT);
+    printf("[main] SELF_ID: %d\n", SELF_ID);
+    
+    // FD_SET(udp_socket, &master);
 
 
-    SOCKET socket_peer = connect_toserver(argv[1], argv[2]);
+    SOCKET socket_peer = connect_toserver(MY_SERVER_IP, MY_SERVER_PORT);
     if (!ISVALIDSOCKET(socket_peer)) {
         fprintf(stderr, "connect_toserver() failed.\n");
         return 1;
@@ -57,7 +72,7 @@ int main(int argc, char *argv[]) {
     FD_SET(socket_peer, &master);
     
     memset(message, 0, BUFFER_SIZE);
-    sprintf(message, "CLIENT:%d:%d:GET_ID\n\n", 0, 0);
+    sprintf(message, "IM_NEW:%d\n\n", SELF_ID);
 
     memset(Buffer, 'x', sizeof(Buffer)-1);
     Buffer[sizeof(Buffer) - 1] = '\0';
@@ -65,7 +80,7 @@ int main(int argc, char *argv[]) {
 
     printf("Sending ID request...\n");
 
-    if (send(socket_peer, Buffer, strlen(Buffer), 0) < 1) {
+    if (send(socket_peer, Buffer, BUFFER_SIZE, 0) < 1) {
         printf("Sending ID request failed.\n");
         CLOSESOCKET(socket_peer);
         #if defined(_WIN32)
@@ -73,7 +88,7 @@ int main(int argc, char *argv[]) {
         #endif
         return (0);
     }
-    printf("ID request (%lu) (%s) sent.\n", strlen(Buffer), message);
+    printf("==>[INFO] INDEX request (%lu) (%s) sent.\n", strlen(Buffer) + 1, message);
 
     memset(message, 0, BUFFER_SIZE);
     memset(Buffer, 0, sizeof(Buffer));
@@ -98,8 +113,8 @@ int main(int argc, char *argv[]) {
 	memcpy(message, Buffer, end - Buffer);
 	printf("[main] message recieved (%lu) Bytes: (%s)\n", strlen(Buffer), message);
     int mPORT;
-    if (sscanf(message, "ORDER:%d:ID:%d:GROUP_ID:%d:GROUP_IP:%15[^:]:GROUP_PORT:%d", 
-                    &CLK_INDEX, &SELF_ID, &GROUP_ID, GROUP_IP, &mPORT) != 5)
+    if (sscanf(message, "GROUP_IP:%15[^:]:GROUP_PORT:%d:INDEX:%d", 
+                    GROUP_IP, &mPORT, &CLK_INDEX) != 3)
     {
         printf("Receing ID failed.\n");
         CLOSESOCKET(socket_peer);
@@ -602,17 +617,28 @@ void print_holdback_queue(HoldBackQueue *head)
 }
 
 
-SOCKET setup_udp_socket(char * sock_ip, char *sock_port)
+char * get_service_info(const char *host, const char *port)
 {
-	printf("[UDP] Configuring local address...\n");
+    printf("[UDP] Configuring remote address...\n");
     struct addrinfo hints;
-	memset(&hints, 0, sizeof(hints));
-	hints.ai_family = AF_INET;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
 	hints.ai_socktype = SOCK_DGRAM;
 	hints.ai_flags = AI_PASSIVE;
-	struct addrinfo *udp_bind_address;
-    
-    getaddrinfo(sock_ip, sock_port, &hints, &udp_bind_address);
+    struct addrinfo *udp_bind_address;
+    if (getaddrinfo(host, port, &hints, &udp_bind_address)) {
+        fprintf(stderr, "getaddrinfo() failed. (%d)\n", GETSOCKETERRNO());
+        return (0);
+    }
+
+    printf("Remote address is: ");
+    char address_buffer[100];
+    char service_buffer[100];
+    getnameinfo(udp_bind_address->ai_addr, udp_bind_address->ai_addrlen,
+            address_buffer, sizeof(address_buffer),
+            service_buffer, sizeof(service_buffer),
+            NI_NUMERICHOST);
+    printf("%s:%s\n", address_buffer, service_buffer);
 
     printf("[UDP] Creating socket...\n");
     SOCKET socket_listen;
@@ -620,44 +646,50 @@ SOCKET setup_udp_socket(char * sock_ip, char *sock_port)
     if (!(ISVALIDSOCKET(socket_listen)))
     {
         fprintf(stderr, "[UDP] socket() failed. (%d)\n", GETSOCKETERRNO());
-        return (-1);
+        return (0);
     }
-    int i = 0;
-    while (1){
-    if (sendto(socket_listen, "CLIENT:0:GET_ID", 14, 0, udp_bind_address->ai_addr, udp_bind_address->ai_addrlen) == -1) {
+    
+    memset(message, 0, BUFFER_SIZE);
+    sprintf(message, "NEW_CLIENT\n\n");
+
+    memset(Buffer, 'x', sizeof(Buffer)-1);
+    Buffer[sizeof(Buffer) - 1] = '\0';
+    memcpy(Buffer, message, strlen(message));
+
+    printf("Sending ID request...\n");
+
+
+    if (sendto(socket_listen, message, BUFFER_SIZE, 0, udp_bind_address->ai_addr, udp_bind_address->ai_addrlen) == -1) {
         fprintf(stderr, "sendto() failed. (%d)\n", GETSOCKETERRNO());
-        return 1;}
-        sleep(1);
-        printf("[%d][UDP] Sending ID request...\n", i);
-        i++;
+        return (0);}
+
+    #if defined(_WIN32)
+    char broadcastEnable = '1';
+    #else
+    int broadcastEnable = 1;
+    #endif
+	printf("[UDP] enabling broadcast...\n");
+    if (setsockopt(socket_listen, SOL_SOCKET, SO_BROADCAST, &broadcastEnable, sizeof(broadcastEnable)) == -1)
+    {
+        fprintf(stderr, "[UDP] setsocktopt() failed. (%d)\n", GETSOCKETERRNO());
+		CLOSESOCKET(socket_listen);
+        return (0);
     }
 
-    // #if defined(_WIN32)
-    // char broadcastEnable = '1';
-    // #else
-    // int broadcastEnable = 1;
-    // #endif
-	// printf("[UDP] enabling broadcast...\n");
-    // if (setsockopt(socket_listen, SOL_SOCKET, SO_BROADCAST, &broadcastEnable, sizeof(broadcastEnable)) == -1)
-    // {
-    //     fprintf(stderr, "[UDP] setsocktopt() failed. (%d)\n", GETSOCKETERRNO());
-	// 	CLOSESOCKET(socket_listen);
-    //     return (-1);
-    // }
-	// int broadcast_loop = 0;
-	// if (setsockopt(socket_listen, SOL_SOCKET, SO_BROADCAST, (char*)&broadcast_loop, sizeof(broadcast_loop)) < 0) {
-	// 	fprintf(stderr, "[UDP] setsockopt() failed. (%d)\n", GETSOCKETERRNO());
-	// 	return (-1);
-	// }
-
-    // printf("[UDP] Binding socket to local address...\n");
-	// if (bind(socket_listen, udp_bind_address->ai_addr, udp_bind_address->ai_addrlen))
-	// {
-	// 	fprintf(stderr, "[UDP] bind() failed. (%d)\n", GETSOCKETERRNO());
-	// 	CLOSESOCKET(socket_listen);
-	// 	return (-1);
-	// }
+    memset(Buffer, 0, sizeof(Buffer));
+    char *clean_message = NULL;
+    printf("[UDP] Wiating for response form elader...\n");
+    if (recvfrom(socket_listen, Buffer, BUFFER_SIZE, 0, udp_bind_address->ai_addr, &udp_bind_address->ai_addrlen) == -1) {
+        fprintf(stderr, "recvfrom() failed. (%d)\n", GETSOCKETERRNO());
+        return (0);
+    }
+    clean_message = clear_message(Buffer);
+    if (clean_message == NULL)
+    {
+        printf("[get_service_info] clean_message is NULL\n");
+        return (0);
+    }
 	freeaddrinfo(udp_bind_address);
     CLOSESOCKET(socket_listen);
-	return(socket_listen);
+	return(clean_message);
 }

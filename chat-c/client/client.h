@@ -63,7 +63,7 @@ SOCKET group_multicast(SOCKET *mc_socket, char *multicast_ip, char * msg);
 SOCKET join_multicast(char *multicast_ip, char * mPORT);
 int array_compare(int *arr1, int *arr2);
 void deliver_messages(HoldBackQueue *head, char *clean_message);
-SOCKET setup_udp_socket(char * sock_ip, char *sock_port);
+char * get_service_info(const char *host, const char *port);
 
 void append_to_holdback_queue(HoldBackQueue **head, char *clean_message);
 void print_holdback_queue(HoldBackQueue *head);
