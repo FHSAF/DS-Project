@@ -50,6 +50,7 @@ int main(int argc, char *argv[]) {
         printf("[main] get_service_info() failed.\n");
         return (0);
     }
+    printf("[main] service_info: %s\n", service_info);
     int sPORT;
     if (sscanf(service_info, "LEADER:YOUR_ID:%d:SERVER_IP:%15[^:]:SERVER_PORT:%d", &SELF_ID, MY_SERVER_IP, &sPORT) != 3)
     {
