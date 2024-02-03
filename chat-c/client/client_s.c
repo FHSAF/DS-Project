@@ -44,7 +44,7 @@ int main(int argc, char *argv[]) {
     fd_set master;
     FD_ZERO(&master);
 
-    char *service_info = get_service_info(argv[1], argv[2]);
+    char *service_info = get_service_info(argv[1], argv[2], argv[3]);
     if (service_info == NULL)
     {
         printf("[main] get_service_info() failed.\n");
@@ -617,7 +617,7 @@ void print_holdback_queue(HoldBackQueue *head)
 }
 
 
-char * get_service_info(const char *host, const char *port)
+char * get_service_info(const char *host, const char *port, const char *device_ip)
 {
     printf("[UDP] Configuring remote address...\n");
     struct addrinfo hints;
@@ -626,7 +626,7 @@ char * get_service_info(const char *host, const char *port)
 	hints.ai_socktype = SOCK_DGRAM;
 	hints.ai_flags = AI_PASSIVE;
     struct addrinfo *udp_bind_address;
-    if (getaddrinfo(host, port, &hints, &udp_bind_address)) {
+    if (getaddrinfo(device_ip, "6969", &hints, &udp_bind_address)) {
         fprintf(stderr, "getaddrinfo() failed. (%d)\n", GETSOCKETERRNO());
         return (0);
     }
@@ -648,14 +648,6 @@ char * get_service_info(const char *host, const char *port)
         fprintf(stderr, "[UDP] socket() failed. (%d)\n", GETSOCKETERRNO());
         return (0);
     }
-
-    printf("[TCP] Binding socket to remote address...\n");
-	if (bind(socket_listen, udp_bind_address->ai_addr, udp_bind_address->ai_addrlen))
-	{
-		fprintf(stderr, "[TCP] bind() failed. (%d)\n", GETSOCKETERRNO());
-		return (0);
-	}
-	freeaddrinfo(udp_bind_address);
     
     memset(message, 0, BUFFER_SIZE);
     sprintf(message, "NEW_CLIENT\n\n");
@@ -666,8 +658,30 @@ char * get_service_info(const char *host, const char *port)
 
     printf("Sending ID request...\n");
 
+    printf("[UDP] Configuring remote address...\n");
+    struct addrinfo hints2;
+    memset(&hints2, 0, sizeof(hints2));
+    hints2.ai_family = AF_INET;
+	hints2.ai_socktype = SOCK_DGRAM;
+	hints2.ai_flags = AI_PASSIVE;
+    struct addrinfo *remote_address;
+    if (getaddrinfo(host, port, &hints2, &remote_address)) {
+        fprintf(stderr, "getaddrinfo() failed. (%d)\n", GETSOCKETERRNO());
+        return (0);
+    }
 
-    if (sendto(socket_listen, message, BUFFER_SIZE, 0, udp_bind_address->ai_addr, udp_bind_address->ai_addrlen) == -1) {
+    printf("Remote address is: ");
+    char address_buffer_remote[100];
+    char service_buffer_remote[100];
+    getnameinfo(remote_address->ai_addr, remote_address->ai_addrlen,
+            address_buffer_remote, sizeof(address_buffer_remote),
+            service_buffer_remote, sizeof(service_buffer_remote),
+            NI_NUMERICHOST);
+    printf("%s:%s\n", address_buffer_remote, service_buffer_remote);
+
+
+
+    if (sendto(socket_listen, message, BUFFER_SIZE, 0, remote_address->ai_addr, remote_address->ai_addrlen) == -1) {
         fprintf(stderr, "sendto() failed. (%d)\n", GETSOCKETERRNO());
         return (0);}
 
@@ -684,6 +698,13 @@ char * get_service_info(const char *host, const char *port)
     //     return (0);
     // }
 
+    printf("[UDP] Binding socket to local address...\n");
+	if (bind(socket_listen, udp_bind_address->ai_addr, udp_bind_address->ai_addrlen))
+	{
+		fprintf(stderr, "[UDP] bind() failed. (%d)\n", GETSOCKETERRNO());
+		CLOSESOCKET(socket_listen);
+		return (0);
+	}
     memset(Buffer, 0, sizeof(Buffer));
     char *clean_message = NULL;
     printf("[UDP] Wiating for response form elader...\n");

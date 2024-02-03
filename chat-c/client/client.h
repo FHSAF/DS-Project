@@ -63,7 +63,7 @@ SOCKET group_multicast(SOCKET *mc_socket, char *multicast_ip, char * msg);
 SOCKET join_multicast(char *multicast_ip, char * mPORT);
 int array_compare(int *arr1, int *arr2);
 void deliver_messages(HoldBackQueue *head, char *clean_message);
-char * get_service_info(const char *host, const char *port);
+char * get_service_info(const char *host, const char *port, const char *device_ip);
 
 void append_to_holdback_queue(HoldBackQueue **head, char *clean_message);
 void print_holdback_queue(HoldBackQueue *head);
