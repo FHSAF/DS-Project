@@ -13,8 +13,12 @@ char *clean_message = NULL;
 
 
 // Multicast
-int clk_index = 0;
-int T[MAX_GROUP_SIZE];
+int CLK_INDEX = 0;
+int SEND_SEQ = 0;
+int DELIVERED[MAX_GROUP_SIZE];
+int DEPENDENCY[MAX_GROUP_SIZE];
+char DEPENDENCY_STR[MAX_GROUP_SIZE+1];
+
 // 
 
 int main(int argc, char *argv[]) {
@@ -31,9 +35,19 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "usage: tcp_client hostname port\n");
         return 1;
     }
-
+    // Multicast
+    HoldBackQueue *bufferHead = NULL;
+    //
     fd_set master;
     FD_ZERO(&master);
+
+    SOCKET udp_socket = setup_udp_socket(argv[1], argv[2]);
+    if (!ISVALIDSOCKET(udp_socket)) {
+        fprintf(stderr, "setup_udp_socket() failed.\n");
+        return 1;
+    }
+    FD_SET(udp_socket, &master);
+
 
     SOCKET socket_peer = connect_toserver(argv[1], argv[2]);
     if (!ISVALIDSOCKET(socket_peer)) {
@@ -85,7 +99,7 @@ int main(int argc, char *argv[]) {
 	printf("[main] message recieved (%lu) Bytes: (%s)\n", strlen(Buffer), message);
     int mPORT;
     if (sscanf(message, "ORDER:%d:ID:%d:GROUP_ID:%d:GROUP_IP:%15[^:]:GROUP_PORT:%d", 
-                    &clk_index, &SELF_ID, &GROUP_ID, GROUP_IP, &mPORT) != 5)
+                    &CLK_INDEX, &SELF_ID, &GROUP_ID, GROUP_IP, &mPORT) != 5)
     {
         printf("Receing ID failed.\n");
         CLOSESOCKET(socket_peer);
@@ -138,7 +152,7 @@ int main(int argc, char *argv[]) {
         if (FD_ISSET(group_socket, &reads)) {
 
             printf("\n=> => [NOTIFICATION] Multicast message received.\n");
-            handle_group_receive(group_socket, SELF_ID);
+            handle_group_receive(group_socket, bufferHead);
             if (mode == 0)
                 printf("[USAGE] Enter <id> <message> to send 1 for multicast (empty line to quit):\n----->");
             else 
@@ -201,9 +215,17 @@ int main(int argc, char *argv[]) {
                     printf("[USAGE] Enter <id> <message> to send 1 for multicast (empty line to quit):\n----->");
                     fflush(stdout);
                     continue;}
+                // Getting string representation of dependencies
+                memcpy(DEPENDENCY, DELIVERED, sizeof(DEPENDENCY));
+                DEPENDENCY[CLK_INDEX] = SEND_SEQ;
+                for (int i = 0; i < MAX_GROUP_SIZE; i++) {
+                    DEPENDENCY_STR[i] = DEPENDENCY[i] + '0';
+                }
+                DEPENDENCY_STR[MAX_GROUP_SIZE] = '\0';
 
-                sprintf(message, "GROUP_ID:%d:SENDER_ID:%d:SENDER_CLK_INDEX:%d:MESSAGE:%s\n\n", 
-                                                        GROUP_ID, SELF_ID, clk_index, userInput);
+                sprintf(message, "\n\tGROUP_ID:%d\n\tSENDER_ID:%d\n\tSENDER_CLK_INDEX:%d\n\tDEPS:%s\n\tMESSAGE:%s\n\n", 
+                                                GROUP_ID, SELF_ID, CLK_INDEX, DEPENDENCY_STR, userInput);
+                SEND_SEQ++;
                 // BUFFER_SIZE-1 bytes should be sent, and be null-terminated
                 memset(Buffer, 'x', BUFFER_SIZE-1);
                 Buffer[BUFFER_SIZE - 1] = '\0';
@@ -213,6 +235,7 @@ int main(int argc, char *argv[]) {
                 printf("Sending: %lu bytes %s", strlen(Buffer), message);
 
                 // FD_CLR(group_socket, &master);
+
                 group_multicast(&group_socket, GROUP_IP, Buffer);
                 // FD_SET(group_socket, &master);
 
@@ -276,12 +299,16 @@ SOCKET connect_toserver(const char *host, const char *port)
     return (socket_peer);
 }
 
-void handle_group_receive(SOCKET group_socket, int self_id)
+void handle_group_receive(SOCKET group_socket, HoldBackQueue *bufferHead)
 {
-    int DEST_ID = 0;
-    int SENDER_ID = 0;
-    int SENDER_CLK_INDEX = 0;
+    int dest_id = 0;
+    int sender_id = 0;
+    int sender_clk_index = 0;
     char content[BUFFER_SIZE];
+    char sender_dep_str[MAX_GROUP_SIZE+1];
+    // int sender_dep[MAX_GROUP_SIZE];
+    sender_dep_str[MAX_GROUP_SIZE] = '\0';
+
     memset(content, 0, sizeof(content));
 
     struct sockaddr_storage sender_addr;
@@ -312,17 +339,19 @@ void handle_group_receive(SOCKET group_socket, int self_id)
         printf("[handle_group_receive] clean_message is NULL\n");
         return;
     }
-    if (sscanf(clean_message, "GROUP_ID:%d:SENDER_ID:%d:SENDER_CLK_INDEX:%d:MESSAGE:%s", 
-                &DEST_ID, &SENDER_ID, &SENDER_CLK_INDEX, content) != 4)
-    {
+    // printf recieved message
+    if (sscanf(clean_message, "\n\tGROUP_ID:%d\n\tSENDER_ID:%d\n\tSENDER_CLK_INDEX:%d\n\tDEPS:%s\n\tMESSAGE:%s", 
+                &dest_id, &sender_id, &sender_clk_index, sender_dep_str, content) != 5)
         printf("[handle_group_receive] sscanf() failed.\n");
-        return;
-    }
-    printf("My ID: %d\n", self_id);
-    printf("[handle_group_receive] \n\n");
-    printf("\tReceived %d bytes\n", bytes_received);
-    printf("\tSender IP: %s\n", sender_ip);
-    printf("\t[Message] %s(%d Bytes).\n\n",clean_message, bytes_received);
+    
+    // for (int i = 0; i < MAX_GROUP_SIZE; i++)
+    // {
+    //     sender_dep[i] = sender_dep_str[i] - '0';
+    // }
+    // Multicast
+    append_to_holdback_queue(&bufferHead, clean_message);
+    deliver_messages(bufferHead, clean_message);
+    // Multicast
 }
 
 char * clear_message(char *not_clean_message)
@@ -430,6 +459,205 @@ SOCKET join_multicast(char *multicast_ip, char * mPORT)
     return (mc_socket);
 }
 
+void append_to_holdback_queue(HoldBackQueue **head, char *clean_message)
+{
+    char sender_dep_str[MAX_GROUP_SIZE+1];
+    sender_dep_str[MAX_GROUP_SIZE] = '\0';
+    char content[BUFFER_SIZE];
+    int sender_dep[MAX_GROUP_SIZE];
+    memset(content, 0, sizeof(content));
+    
+
+    HoldBackQueue *newNode = (HoldBackQueue *)malloc(sizeof(HoldBackQueue));
+    if (newNode == NULL)
+    {
+        printf("[append_to_holdback_queue] malloc() failed.\n");
+        return;
+    }
+    newNode->next = NULL;
+    newNode->clk_index = 0;
+    newNode->id = 0;
+    
+    memset(newNode->content, 0, BUFFER_SIZE);
+    memset(newNode->dependency, 0, sizeof(newNode->dependency));
+    if (sscanf(clean_message, "\n\tGROUP_ID:%d\n\tSENDER_ID:%d\n\tSENDER_CLK_INDEX:%d\n\tDEPS:%s\n\tMESSAGE:%s", 
+    &newNode->id, &newNode->id, &newNode->clk_index, sender_dep_str, content) != 5)
+    {
+        printf("[append_to_holdback_queue] sscanf() failed.\n");
+        return;
+    }
+    for (int i = 0; i < MAX_GROUP_SIZE; i++)
+    {
+        sender_dep[i] = sender_dep_str[i] - '0';
+    }
+
+    memcpy(newNode->dependency, sender_dep, sizeof(sender_dep));
+    memcpy(newNode->content, clean_message, strlen(clean_message) + 1);
+
+    if (*head == NULL)
+    {
+        *head = newNode;
+        return;
+    }
+    HoldBackQueue *current = *head;
+    while (current->next != NULL)
+    {
+        current = current->next;
+    }
+    current->next = newNode;
+}
+
+void deliver_messages(HoldBackQueue *head, char *clean_message)
+{
+    int dest_id = 0;
+    int sender_id = 0;
+    int sender_clk_index = 0;
+    char content[BUFFER_SIZE];
+    char sender_dep_str[MAX_GROUP_SIZE+1];
+    // int sender_dep[MAX_GROUP_SIZE];
+    sender_dep_str[MAX_GROUP_SIZE] = '\0';
+
+    if (sscanf(clean_message, "\n\tGROUP_ID:%d\n\tSENDER_ID:%d\n\tSENDER_CLK_INDEX:%d\n\tDEPS:%s\n\tMESSAGE:%s", 
+                &dest_id, &sender_id, &sender_clk_index, sender_dep_str, content) != 5)
+    {
+        printf("[deliver_messages] sscanf() failed.\n");
+        return;
+    }
+    
+    HoldBackQueue *current = head;
+    
+    while (current != NULL)
+    {
+        if (array_compare(current->dependency, DELIVERED) <= 0)
+        {
+            printf("[deliver_messages] Delivering message: \n%s.\n\n", current->content);
+            printf("[deliver_messages] Updating DELIVERED array.\n");
+            DELIVERED[current->clk_index] += 1;
+            remove_from_holdback_queue(&head, current->clk_index);
+            printf("\n\t==================== HOLD BACK ====================\n");
+            print_holdback_queue(head);
+            printf("\t==================== HOLD BACK ====================\n\n");
+        } else {
+            printf("[deliver_messages] Message (%s) not delivered.\n", current->content);
+            return;
+        }
+        current = current->next;
+    }
+
+    return;
+}
+
+void remove_from_holdback_queue(HoldBackQueue **head, int clk_index)
+{
+    if (*head == NULL)
+    {
+        printf("[remove_from_holdback_queue] Queue is empty.\n");
+        return;
+    }
+    if ((*head)->clk_index == clk_index)
+    {
+        HoldBackQueue *temp = *head;
+        *head = (*head)->next;
+        free(temp);
+        return;
+    }
+    HoldBackQueue *current = *head;
+    while (current->next != NULL)
+    {
+        if (current->next->clk_index == clk_index)
+        {
+            HoldBackQueue *temp = current->next;
+            current->next = current->next->next;
+            free(temp);
+            return;
+        }
+        current = current->next;
+    }
+    printf("[remove_from_holdback_queue] Message not found.\n");
+    return;
+}
+
+int array_compare(int *arr1, int *arr2)
+{
+    for (int i = 0; i < MAX_GROUP_SIZE; i++)
+    {
+        if (arr1[i] != arr2[i])
+        {
+            if (arr1[i] > arr2[i])
+                return (1);
+        }
+    }
+    return (0);
+}
+
+void print_holdback_queue(HoldBackQueue *head)
+{
+    HoldBackQueue *current = head;
+    while (current != NULL)
+    {
+        printf("\n%s\n\n", current->content);
+        current = current->next;
+    }
+    return;
+}
 
 
-// Path: chat-c/client/client_s.c
+SOCKET setup_udp_socket(char * sock_ip, char *sock_port)
+{
+	printf("[UDP] Configuring local address...\n");
+    struct addrinfo hints;
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_DGRAM;
+	hints.ai_flags = AI_PASSIVE;
+	struct addrinfo *udp_bind_address;
+    
+    getaddrinfo(sock_ip, sock_port, &hints, &udp_bind_address);
+
+    printf("[UDP] Creating socket...\n");
+    SOCKET socket_listen;
+    socket_listen = socket(udp_bind_address->ai_family, udp_bind_address->ai_socktype, udp_bind_address->ai_protocol);
+    if (!(ISVALIDSOCKET(socket_listen)))
+    {
+        fprintf(stderr, "[UDP] socket() failed. (%d)\n", GETSOCKETERRNO());
+        return (-1);
+    }
+    int i = 0;
+    while (1){
+    if (sendto(socket_listen, "CLIENT:0:GET_ID", 14, 0, udp_bind_address->ai_addr, udp_bind_address->ai_addrlen) == -1) {
+        fprintf(stderr, "sendto() failed. (%d)\n", GETSOCKETERRNO());
+        return 1;}
+        sleep(1);
+        printf("[%d][UDP] Sending ID request...\n", i);
+        i++;
+    }
+
+    // #if defined(_WIN32)
+    // char broadcastEnable = '1';
+    // #else
+    // int broadcastEnable = 1;
+    // #endif
+	// printf("[UDP] enabling broadcast...\n");
+    // if (setsockopt(socket_listen, SOL_SOCKET, SO_BROADCAST, &broadcastEnable, sizeof(broadcastEnable)) == -1)
+    // {
+    //     fprintf(stderr, "[UDP] setsocktopt() failed. (%d)\n", GETSOCKETERRNO());
+	// 	CLOSESOCKET(socket_listen);
+    //     return (-1);
+    // }
+	// int broadcast_loop = 0;
+	// if (setsockopt(socket_listen, SOL_SOCKET, SO_BROADCAST, (char*)&broadcast_loop, sizeof(broadcast_loop)) < 0) {
+	// 	fprintf(stderr, "[UDP] setsockopt() failed. (%d)\n", GETSOCKETERRNO());
+	// 	return (-1);
+	// }
+
+    // printf("[UDP] Binding socket to local address...\n");
+	// if (bind(socket_listen, udp_bind_address->ai_addr, udp_bind_address->ai_addrlen))
+	// {
+	// 	fprintf(stderr, "[UDP] bind() failed. (%d)\n", GETSOCKETERRNO());
+	// 	CLOSESOCKET(socket_listen);
+	// 	return (-1);
+	// }
+	freeaddrinfo(udp_bind_address);
+    CLOSESOCKET(socket_listen);
+	return(socket_listen);
+}

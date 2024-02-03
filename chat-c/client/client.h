@@ -46,10 +46,29 @@
 #define BUFFER_SIZE 256
 #define MAX_GROUP_SIZE 10
 
+typedef struct holdBackQueue
+{
+    int id;
+    int clk_index;
+    char content[BUFFER_SIZE];
+    int dependency[MAX_GROUP_SIZE];
+    struct holdBackQueue *next;
+} HoldBackQueue;
+
+
 SOCKET connect_toserver(const char *host, const char *port);
-void handle_group_receive(SOCKET group_socket, int self_id);
+void handle_group_receive(SOCKET group_socket, HoldBackQueue *head);
 char * clear_message(char *not_clean_message);
 SOCKET group_multicast(SOCKET *mc_socket, char *multicast_ip, char * msg);
 SOCKET join_multicast(char *multicast_ip, char * mPORT);
+int array_compare(int *arr1, int *arr2);
+void deliver_messages(HoldBackQueue *head, char *clean_message);
+SOCKET setup_udp_socket(char * sock_ip, char *sock_port);
+
+void append_to_holdback_queue(HoldBackQueue **head, char *clean_message);
+void print_holdback_queue(HoldBackQueue *head);
+void remove_from_holdback_queue(HoldBackQueue **head, int clk_index);
+
+
 
 #endif // CLIENT_H
