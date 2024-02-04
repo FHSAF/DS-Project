@@ -2,7 +2,7 @@
 
 struct ClientInfo clients[MAX_CONNECTION];
 struct ClientInfo *tempClient;
-int randomPort = 6969;
+int randomPort = 8081;
 void assign_client_info(SOCKET socket_client, struct sockaddr_storage client_address)
 {
 	socklen_t addr_len = sizeof(client_address);
@@ -43,23 +43,23 @@ int handle_client_message(int sender_id, int dest_id, char *message, struct serv
 {
 	
 	printf("[handle_client_message] Sender (%d), Dest (%d), Message (%s)\n", sender_id, dest_id, message);
-	if ((dest_id == sender_id) && (strcmp(message, "GET_ID") == 0))
+	if ((strcmp(message, "GET_INDEX") == 0))
 	{
 		char msg[BUFFER_SIZE];
 		memset(msg, 0, sizeof(msg));
 		memset(msg, 0, BUFFER_SIZE);
-		int client_id = getRadomId(1000, 10000)*(client_count);
+		// int client_id = getRadomId(1000, 10000)*(client_count);
 		for (int ci = 0; ci < client_count; ++ci)
 		{
 			if (clients[ci].socket == i)
 			{
-				clients[ci].id = client_id;
+				clients[ci].id = sender_id;
 				printf("[handle_client_msg] Client(%d) id is (%d).\n",client_count, clients[ci].id);
 			}
 		}
 		
-		sprintf(msg, "ORDER:%d:ID:%d:GROUP_ID:%d:GROUP_IP:%s:GROUP_PORT:%d\n\n", 
-					clk_index, client_id, GROUP_ID, MULTICAST_IP, randomPort);
+		sprintf(msg, "GROUP_IP:%s:GROUP_PORT:%d:INDEX:%d\n\n", 
+					MULTICAST_IP, randomPort, clk_index);
 		clk_index++;
 		memset(sendBuf, 'x', sizeof(sendBuf)-1);
 		sendBuf[sizeof(sendBuf) - 1] = '\0';

@@ -145,6 +145,7 @@ SOCKET handle_mcast_receive(SOCKET mc_socket, struct serverInfo * connected_peer
 SOCKET peer_mcast_receive(struct serverInfo * connected_peers, char *buf, struct sockaddr_in sender_addr) {
 
     int new_peer_id, new_peer_port;
+	int new_client_tcp_port;
 	char message[1024];
     if (sscanf(buf, "LEADER_DISCOVERY:%d:%d", &new_peer_id, &new_peer_port) == 2) {
 		char port[6];
@@ -259,7 +260,33 @@ SOCKET peer_mcast_receive(struct serverInfo * connected_peers, char *buf, struct
 		}
         return (ctcp_socket);
 		
-	} else {
+	} else if (sscanf(buf, "NEW_CLIENT:%d", &new_client_tcp_port) == 1){
+		char port[6];
+		sprintf(port, "%d", new_client_tcp_port);
+		SOCKET tcp_socket_to_client = setup_tcp_client(inet_ntoa(sender_addr.sin_addr), port);
+		if (!(ISVALIDSOCKET(tcp_socket_to_client)))
+		{
+			fprintf(stderr, "[peer_mcast_receive] setup_tcp_client() failed. (%d)\n", GETSOCKETERRNO());
+			return (error_return);
+		}
+		memset(message, 0, sizeof(message));
+
+		// for now, we are just sending the leader's info
+		int client_id = getRadomId(100, 1000);
+		sprintf(message, "LEADER:YOUR_ID:%d:SERVER_IP:%s:SERVER_PORT:%d\n\n", 
+				client_id, connected_peers->addr, connected_peers->port);
+
+		memset(sendBuf, 'x', sizeof(sendBuf)-1);
+		sendBuf[sizeof(sendBuf) - 1] = '\0';
+		memcpy(sendBuf, message, strlen(message));
+
+		if (send(tcp_socket_to_client, sendBuf, sizeof(sendBuf), 0) == -1) {
+			fprintf(stderr, "[peer_mcast_receive] send() failed. (%d)\n", GETSOCKETERRNO());
+			return (error_return);
+		}
+		CLOSESOCKET(tcp_socket_to_client);
+		return (error_return);
+	}else {
 		#if defined(_WIN32)
 			fprintf(stderr, "[peer_mcast_receive] Unknow message fomrat: (%d) bytes: %.*s\n", strlen(buf), (int)strlen(buf), buf);
 		#else

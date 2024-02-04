@@ -45,6 +45,8 @@
 
 #define BUFFER_SIZE 256
 #define MAX_GROUP_SIZE 10
+#define SERVICE_MULTICAST_IP "239.255.255.250"
+#define SERVICE_MULTICAST_PORT "12345"
 
 typedef struct holdBackQueue
 {
@@ -55,19 +57,27 @@ typedef struct holdBackQueue
     struct holdBackQueue *next;
 } HoldBackQueue;
 
+extern char message[BUFFER_SIZE];
+extern char Buffer[BUFFER_SIZE];
 
 SOCKET connect_toserver(const char *host, const char *port);
-void handle_group_receive(SOCKET group_socket, HoldBackQueue *head);
+HoldBackQueue * handle_group_receive(SOCKET group_socket, HoldBackQueue *head);
 char * clear_message(char *not_clean_message);
-SOCKET group_multicast(SOCKET *mc_socket, char *multicast_ip, char * msg);
+SOCKET group_multicast(SOCKET *mc_socket, char *multicast_ip, char *multicast_port, char * msg);
 SOCKET join_multicast(char *multicast_ip, char * mPORT);
 int array_compare(int *arr1, int *arr2);
-void deliver_messages(HoldBackQueue *head, char *clean_message);
+HoldBackQueue * deliver_messages(HoldBackQueue *head, char *clean_message);
 char * get_service_info(const char *host, const char *port, const char *device_ip);
+// Gettting service info from multicast or tcp
+char * get_service_info_mcast(const char *host, const char *port, const char *device_ip, const char *device_port);
+SOCKET get_tcp_socket(char *address, char *port);
 
 void append_to_holdback_queue(HoldBackQueue **head, char *clean_message);
 void print_holdback_queue(HoldBackQueue *head);
 void remove_from_holdback_queue(HoldBackQueue **head, int clk_index);
+void free_holdback_queue(HoldBackQueue *head);
+void get_deps_str(int *int_array, int size, char *str_array);
+void get_deps_int(char *str_array, int *int_array);
 
 
 
