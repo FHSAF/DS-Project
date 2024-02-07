@@ -2,6 +2,8 @@
 
 char * get_service_info_mcast(const char *host, const char *port, const char *device_ip, const char *device_port)
 {
+    printf("\n=>=>[get_service_info_mcast] \n");
+
     char mCastIP[16];
     memset(mCastIP, 0, sizeof(mCastIP));
     char mCastPort[6];
@@ -19,7 +21,7 @@ char * get_service_info_mcast(const char *host, const char *port, const char *de
     SOCKET socket_listen = join_multicast(mCastIP, mCastPort);
     if (!(ISVALIDSOCKET(socket_listen)))
     {
-        fprintf(stderr, "==> [ERROR] join_multicast() failed. (%d)\n", GETSOCKETERRNO());
+        fprintf(stderr, "=>=>=> [ERROR] join_multicast() failed. (%d)\n", GETSOCKETERRNO());
         return (0);
     }
     memset(Buffer, 'x', sizeof(Buffer));
@@ -34,19 +36,19 @@ char * get_service_info_mcast(const char *host, const char *port, const char *de
     SOCKET tcp_socket = get_tcp_socket(localIP, localPort);
     if (!(ISVALIDSOCKET(tcp_socket)))
     {
-        fprintf(stderr, "==> [ERROR] get_tcp_socket() failed. (%d)\n", GETSOCKETERRNO());
+        fprintf(stderr, "=>=>=> [ERROR] get_tcp_socket() failed. (%d)\n", GETSOCKETERRNO());
         return (0);
     }
     SOCKET new_socket = accept(tcp_socket, NULL, NULL);
     if (new_socket == -1)
     {
-        fprintf(stderr, "==> [ERROR] accept() failed. (%d)\n", GETSOCKETERRNO());
+        fprintf(stderr, "=>=>=> [ERROR] accept() failed. (%d)\n", GETSOCKETERRNO());
         return (0);
     }
     memset(Buffer, 0, sizeof(Buffer));
     if (recv(new_socket, Buffer, BUFFER_SIZE, 0) == -1)
     {
-        fprintf(stderr, "==> [ERROR] recv() failed. (%d)\n", GETSOCKETERRNO());
+        fprintf(stderr, "=>=>=> [ERROR] recv() failed. (%d)\n", GETSOCKETERRNO());
         return (0);
     }
     char *clean_message = clear_message(Buffer);

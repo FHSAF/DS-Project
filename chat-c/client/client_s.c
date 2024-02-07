@@ -49,24 +49,24 @@ int main(int argc, char *argv[]) {
     // char *service_info_tcp = get_service_info(argv[1], argv[2], argv[3]);
     if (service_info == NULL)
     {
-        printf("[main] get_service_info() failed.\n");
+        printf("=>=>=> [ERROR][main] get_service_info() failed.\n");
         return (0);
     }
-    printf("[main] service_info: %s\n", service_info);
+    printf("[INFO][main] service_info: %s\n", service_info);
     int sPORT;
     if (sscanf(service_info, "LEADER:YOUR_ID:%d:SERVER_IP:%15[^:]:SERVER_PORT:%d", &SELF_ID, MY_SERVER_IP, &sPORT) != 3)
     {
-        printf("[main] sscanf() failed.\n");
+        printf("=>=>=> [ERROR][main] sscanf() failed.\n");
         return (0);
     }
     sprintf(MY_SERVER_PORT, "%d", sPORT);
-    printf("[main] MY_SERVER_IP: %s\n", MY_SERVER_IP);
-    printf("[main] MY_SERVER_PORT: %s\n", MY_SERVER_PORT);
-    printf("[main] SELF_ID: %d\n", SELF_ID);
+    printf("[INFO][main] MY_SERVER_IP: %s\n", MY_SERVER_IP);
+    printf("[INFO][main] MY_SERVER_PORT: %s\n", MY_SERVER_PORT);
+    printf("[INFO][main] SELF_ID: %d\n", SELF_ID);
 
     SOCKET socket_peer = connect_toserver(MY_SERVER_IP, MY_SERVER_PORT);
     if (!ISVALIDSOCKET(socket_peer)) {
-        fprintf(stderr, "connect_toserver() failed.\n");
+        fprintf(stderr, "=>=>=> [ERROR] connect_toserver() failed.\n");
         return 1;
     }
     FD_SET(socket_peer, &master);
@@ -79,7 +79,7 @@ int main(int argc, char *argv[]) {
     Buffer[sizeof(Buffer) - 1] = '\0';
     memcpy(Buffer, message, strlen(message));
 
-    printf("Sending ID request...\n");
+    printf("==> [PROGRESS][main] Sending ID request...\n");
 
     if (send(socket_peer, Buffer, BUFFER_SIZE, 0) < 1) {
         printf("Sending ID request failed.\n");
@@ -89,7 +89,7 @@ int main(int argc, char *argv[]) {
         #endif
         return (0);
     }
-    printf("==>[INFO] INDEX request (%lu) (%s) sent.\n", strlen(Buffer) + 1, message);
+    printf("==> [PROGRESS][main] INDEX request (%lu) (%s) sent.\n", strlen(Buffer) + 1, message);
 
     memset(message, 0, BUFFER_SIZE);
     memset(Buffer, 0, sizeof(Buffer));
@@ -97,7 +97,7 @@ int main(int argc, char *argv[]) {
 
     if ((received_bytes = recv(socket_peer, Buffer, BUFFER_SIZE, 0)) < 1)
     {
-        printf("Receiving ID failed.\n");
+        printf("=>=>=> [ERROR][main] Receiving ID failed.\n");
         CLOSESOCKET(socket_peer);
         #if defined(_WIN32)
             WSACleanup();
@@ -108,11 +108,11 @@ int main(int argc, char *argv[]) {
 	char *end = strstr(Buffer, "\n\n");
 	if (end == NULL)
 	{
-		printf("[main] end of message not found\n");
+		printf("=>=>=> [ERROR][main] end of message not found\n");
 		return (0);
 	}
 	memcpy(message, Buffer, end - Buffer);
-	printf("[main] message recieved (%lu) Bytes: (%s)\n", strlen(Buffer), message);
+	printf("[INFO][main] message recieved (%lu) Bytes: (%s)\n", strlen(Buffer), message);
     int mPORT;
     if (sscanf(message, "GROUP_IP:%15[^:]:GROUP_PORT:%d:INDEX:%d", 
                     GROUP_IP, &mPORT, &CLK_INDEX) != 3)
@@ -131,7 +131,7 @@ int main(int argc, char *argv[]) {
     // END Getting GROUP socket
 
     if (!(ISVALIDSOCKET(group_socket))) {
-        fprintf(stderr, "join_multicast() failed. (%d)\n", GETSOCKETERRNO());
+        fprintf(stderr, "=>=>=> [ERROR][main] join_multicast() failed. (%d)\n", GETSOCKETERRNO());
         CLOSESOCKET(socket_peer);
         #if defined(_WIN32)
             WSACleanup();
@@ -143,11 +143,11 @@ int main(int argc, char *argv[]) {
         FD_SET(0, &master);
     #endif
 
-    printf("==>[main] Connected with assigned ID: %d\n", SELF_ID);
-    printf("==>[main] GROUP ID: %d\n", GROUP_ID);
-    printf("==>[main] GROUP IP: %s:%s\n", GROUP_IP, GROUP_PORT);
+    printf("[INFO][main] Connected with assigned ID: %d\n", SELF_ID);
+    printf("[INFO][main] GROUP ID: %d\n", GROUP_ID);
+    printf("[INFO][main] GROUP IP: %s:%s\n", GROUP_IP, GROUP_PORT);
 
-    printf("[USAGE] Enter <id> <message> to send 1 for multicast (empty line to quit):\n----->");
+    printf("[USAGE] Enter <id:message> to send 1 for multicast (empty line to quit):\nUSERINPUT$>");
     fflush(stdout);
     SOCKET socket_max = socket_peer;
     if (group_socket > socket_max) socket_max = group_socket;
@@ -170,9 +170,9 @@ int main(int argc, char *argv[]) {
             printf("\n=> => [NOTIFICATION] Multicast message received.\n");
             bufferHead = handle_group_receive(group_socket, bufferHead);
             if (mode == 0)
-                printf("[USAGE] Enter <id> <message> to send 1 for multicast (empty line to quit):\n----->");
+                printf("[USAGE] Enter <id:message> to send 1 for multicast (empty line to quit):\nUSERINPUT$>");
             else 
-                printf("[USAGE] Enter message to multicast, 0 for Unicast (empty line to quit):\n----->");
+                printf("[USAGE] Enter message to multicast, 0 for Unicast (empty line to quit):\nUSERINPUT$>");
             fflush(stdout);
         }
 
@@ -180,15 +180,15 @@ int main(int argc, char *argv[]) {
             memset(Buffer, 0, sizeof(Buffer));
             int bytes_received = recv(socket_peer, Buffer, BUFFER_SIZE, 0);
             if (bytes_received < 1) {
-                printf("Connection closed by peer.\n");
+                printf("[TERMINATION] Connection closed by peer.\n");
                 break;
             }
             char *clean_message = clear_message(Buffer);
-            printf("\n\t[%lu Bytes]: %s\n\n",strlen(Buffer), clean_message);
+            printf("\n\t[%lu Bytes]\n\t%s\n\n",strlen(Buffer), clean_message);
             if (mode == 0)
-                printf("[USAGE] Enter <id> <message> to send 1 for multicast (empty line to quit):\n----->");
+                printf("[USAGE] Enter <id:message> to send 1 for multicast (empty line to quit):\nUSERINPUT$>");
             else 
-                printf("[USAGE] Enter message to multicast, 0 for Unicast (empty line to quit):\n----->");
+                printf("[USAGE] Enter message to multicast, 0 for Unicast (empty line to quit):\nUSERINPUT$>");
             fflush(stdout);
         }
         
@@ -205,7 +205,7 @@ int main(int argc, char *argv[]) {
                 if ((userInput[0] == '1') && (strlen(userInput) == 2)){ 
                     mode = 1;
                     printf("==> Mode changed to multicast.\n");
-                    printf("[USAGE] Enter message to multicast, 0 for Unicast (empty line to quit):\n----->");
+                    printf("[USAGE] Enter message to multicast, 0 for Unicast (empty line to quit):\nUSERINPUT$>");
                     fflush(stdout);
                     continue;}
                 sprintf(message, "CLIENT:%d:%s\n\n", SELF_ID, userInput);
@@ -217,7 +217,7 @@ int main(int argc, char *argv[]) {
                 printf("Sending: %lu bytes %s.", strlen(Buffer), message);
                 int bytes_sent = send(socket_peer, Buffer, strlen(Buffer), 0);
                 printf("Sent %d bytes.\n", bytes_sent);
-                printf("[USAGE] Enter <id> <message> to send 1 for multicast (empty line to quit):\n----->");
+                printf("[USAGE] Enter <id:message> to send 1 for multicast (empty line to quit):\nUSERINPUT$>");
                 fflush(stdout);
             } else if (mode == 1)
             {
@@ -228,7 +228,7 @@ int main(int argc, char *argv[]) {
                 if ((userInput[0] == '0') && (strlen(userInput) == 2)){ 
                     mode = 0;
                     printf("==> Mode changed to Unicast.\n");
-                    printf("[USAGE] Enter <id> <message> to send 1 for multicast (empty line to quit):\n----->");
+                    printf("[USAGE] Enter <id:message> to send 1 for multicast (empty line to quit):\nUSERINPUT$>");
                     fflush(stdout);
                     continue;}
                 // Getting string representation of dependencies
@@ -253,7 +253,7 @@ int main(int argc, char *argv[]) {
                 group_multicast(&group_socket, GROUP_IP, GROUP_PORT, Buffer);
                 // FD_SET(group_socket, &master);
 
-                printf("[USAGE] Enter message to multicast, 0 for Unicast (empty line to quit):\n----->");
+                printf("[USAGE] Enter message to multicast, 0 for Unicast (empty line to quit):\nUSERINPUT$>");
                 fflush(stdout);
             }
         }
@@ -274,6 +274,8 @@ int main(int argc, char *argv[]) {
 
 HoldBackQueue* deliver_messages(HoldBackQueue *head, char *clean_message)
 {
+    printf("\n=>=>[deliver_messages] \n");
+
     int dest_id = 0;
     int sender_id = 0;
     int sender_clk_index = 0;
@@ -323,6 +325,8 @@ HoldBackQueue* deliver_messages(HoldBackQueue *head, char *clean_message)
 
 char * get_service_info(const char *host, const char *port, const char *device_ip)
 {
+    printf("\n=>=>[get_service_info] \n");
+
     printf("[UDP] Configuring remote address...\n");
     struct addrinfo hints;
     memset(&hints, 0, sizeof(hints));
@@ -418,6 +422,3 @@ char * get_service_info(const char *host, const char *port, const char *device_i
     CLOSESOCKET(socket_listen);
 	return(clean_message);
 }
-
-
-

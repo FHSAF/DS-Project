@@ -79,6 +79,4 @@ void free_holdback_queue(HoldBackQueue *head);
 void get_deps_str(int *int_array, int size, char *str_array);
 void get_deps_int(char *str_array, int *int_array);
 
-
-
 #endif // CLIENT_H

@@ -2,6 +2,8 @@
 
 SOCKET setup_tcp_client(char *address, char *port)
 {
+    printf("\n=>=> [INFO][setup_tcp_client] \n");
+
     printf("[setup_tcp_client] Configuring remote address...\n");
     struct addrinfo hints;
     memset(&hints, 0, sizeof(hints));
@@ -46,6 +48,8 @@ SOCKET setup_tcp_client(char *address, char *port)
 
 SOCKET setup_udp_socket(char * sock_ip, char *sock_port)
 {
+    printf("\n=>=> [INFO][setup_udp_socket] \n");
+
 	printf("[UDP] Configuring local address...\n");
     struct addrinfo hints;
 	memset(&hints, 0, sizeof(hints));
@@ -96,6 +100,8 @@ SOCKET setup_udp_socket(char * sock_ip, char *sock_port)
 
 SOCKET setup_tcp_socket()
 {
+    printf("\n=>=> [INFO][setup_tcp_socket] \n");
+    
 	printf("[TCP] Configuring local address...\n");
 	SOCKET socket_listen;
 	struct addrinfo *bind_address;

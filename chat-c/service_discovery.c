@@ -2,13 +2,15 @@
 
 SOCKET service_discovery(SOCKET *mc_socket, SOCKET *successor_socket, SOCKET tcp_socket, struct serverInfo *head)
 {
+	printf("\n=>=> [INFO][service_discovery] \n");
+	
 	fd_set master;
     FD_ZERO(&master);
     FD_SET(tcp_socket, &master);
 
     SOCKET socket_max = tcp_socket;
 
-	char message[BUFFER_SIZE-3]; // \n\n\0
+	char message[BUFFER_SIZE]; 
 	memset(message, 0, sizeof(message));
     
     sprintf(message, "LEADER_DISCOVERY:%d:%d\n\n", head->ID, head->port);
@@ -17,13 +19,13 @@ SOCKET service_discovery(SOCKET *mc_socket, SOCKET *successor_socket, SOCKET tcp
 	char service_buffer[100];
 
 	memset(sendBuf, 'x', sizeof(sendBuf)-1);
-	sendBuf[sizeof(sendBuf) - 1] = '\0';
+	sendBuf[sizeof(sendBuf) - 1] = '\0'; // 256th byte is null terminator
 	memcpy(sendBuf, message, strlen(message));
 
 	printf("\t[service_discovery] broadcasting (%lu) bytes, attempt(%d)...\n", strlen(sendBuf), 1);
 	if (!ISVALIDSOCKET(do_multicast(mc_socket, MULTICAST_IP, sendBuf)))
 		return (error_return);
-    for (int attempt = 0; attempt < 2; ++attempt)
+    for (int attempt = 0; attempt < 3; ++attempt)
     {
         fd_set reads;
         reads = master;
@@ -39,9 +41,9 @@ SOCKET service_discovery(SOCKET *mc_socket, SOCKET *successor_socket, SOCKET tcp
 			return (error_return);
         } else if (activity == 0) {
             printf("[service_discovery] No response received within 3 seconds.\n");
-			// printf("\t[service_discovery] broadcasting ID (%s), attempt(%d)...\n\n", msg, attempt+2);
-			// if (!ISVALIDSOCKET(do_multicast(mc_socket, MULTICAST_IP, msg)))
-			// 	return (error_return);
+			printf("\t[service_discovery] broadcasting attempt(%d)...\n\n", attempt+2);
+			if (!ISVALIDSOCKET(do_multicast(mc_socket, MULTICAST_IP, sendBuf)))
+				return (error_return);
 			return (error_return);
         } else {
             // A response was received. Process it...
@@ -66,9 +68,11 @@ SOCKET service_discovery(SOCKET *mc_socket, SOCKET *successor_socket, SOCKET tcp
 						getnameinfo((struct sockaddr*)&client_address, client_len, 
 						address_buffer, sizeof(address_buffer), service_buffer, sizeof(service_buffer), NI_NUMERICHOST | NI_NUMERICSERV);
 						printf("[service_discovery] New connection from %s\n", address_buffer);
+						assign_client_info(socket_client, client_address);
 					} else if (i==socket_client) {
 						// This socket has data. Read it...
-						char readBuf[BUFFER_SIZE+1];
+						char readBuf[BUFFER_SIZE];
+						memset(readBuf, 0, sizeof(readBuf));
 						int bytes_received = recv(i, readBuf, BUFFER_SIZE, 0);
 						if (bytes_received < 1)
 						{

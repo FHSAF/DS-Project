@@ -2,6 +2,8 @@
 
 HoldBackQueue * handle_group_receive(SOCKET group_socket, HoldBackQueue *bufferHead)
 {
+    printf("\n=>=>[handle_group_receive] \n");
+
     int dest_id = 0;
     int sender_id = 0;
     int sender_clk_index = 0;
@@ -20,7 +22,7 @@ HoldBackQueue * handle_group_receive(SOCKET group_socket, HoldBackQueue *bufferH
     int bytes_received = recvfrom(group_socket, Buffer, BUFFER_SIZE, 0, (struct sockaddr*)&sender_addr, &sender_addr_len);
 
     if (bytes_received == -1) {
-        fprintf(stderr, "[handle_group_receive] recvfrom() failed. (%d)\n", GETSOCKETERRNO());
+        fprintf(stderr, "=>=>=> [ERROR][handle_group_receive] recvfrom() failed. (%d)\n", GETSOCKETERRNO());
         return(0);
     }
 
@@ -30,7 +32,7 @@ HoldBackQueue * handle_group_receive(SOCKET group_socket, HoldBackQueue *bufferH
                             sizeof(sender_port), NI_NUMERICHOST | NI_NUMERICSERV);
 
     if (res != 0) {
-        fprintf(stderr, "[handle_group_receive] getnameinfo() failed: %s\n", gai_strerror(res));
+        fprintf(stderr, "=>=>=> [ERROR][handle_group_receive] getnameinfo() failed: %s\n", gai_strerror(res));
         return(0);
     }
 
@@ -46,8 +48,6 @@ HoldBackQueue * handle_group_receive(SOCKET group_socket, HoldBackQueue *bufferH
         printf("[handle_group_receive] sscanf() failed.\n");
     
     // Multicast
-    if (bufferHead == NULL)
-        printf("[INFOR] Queue is empty.\n");
     append_to_holdback_queue(&bufferHead, clean_message);
     
     bufferHead = deliver_messages(bufferHead, clean_message);

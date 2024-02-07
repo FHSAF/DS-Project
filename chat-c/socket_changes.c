@@ -2,10 +2,12 @@
 
 void handle_socket_change(fd_set *master, SOCKET i, SOCKET *udp_socket, SOCKET *mc_socket, SOCKET *ltcp_socket, SOCKET *successor_socket, SOCKET *socket_max, ServerInfo *connected_peers)
 {
+	printf("\n=>=> [INFO][handle_socket_change] \n");
+
 	char readBuf[BUFFER_SIZE];
 	memset(readBuf, 0, sizeof(readBuf));
 
-	int byte_received = recv(i, readBuf, BUFFER_SIZE-1, 0);
+	int byte_received = recv(i, readBuf, BUFFER_SIZE, 0);
 	if (byte_received < 1)
 	{
 		handle_disconnection(connected_peers, i, *udp_socket, *mc_socket, *ltcp_socket, *successor_socket);
@@ -13,7 +15,7 @@ void handle_socket_change(fd_set *master, SOCKET i, SOCKET *udp_socket, SOCKET *
 			*ltcp_socket = error_return;
 		FD_CLR(i, master);
 		CLOSESOCKET(i);
-		printf("[handle_socker_change]] socket (%d) closed\n", i);
+		printf("[INFO][handle_socket_change] socket (%d) closed\n", i);
 		return;
 	}
 	char read[BUFFER_SIZE];
@@ -22,15 +24,16 @@ void handle_socket_change(fd_set *master, SOCKET i, SOCKET *udp_socket, SOCKET *
 	char *end = strstr(readBuf, "\n\n");
 	if (end == NULL)
 	{
-		printf("[main] end of message not found\n");
+		printf("[INFOR][handle_socket_change] end of message not found\n");
+		printf("[INFOR][handle_socket_change] readBuf: (%s)\n", readBuf);
 		return;
 	}
 	memcpy(read, readBuf, end - readBuf);
-	printf("[main] message recieved read(%lu) bytes: (%s)\n", strlen(readBuf), read);
+	printf("[INFOR][handle_socket_change] message recieved read(%lu) bytes: (%s)\n", strlen(readBuf), read);
 
 	if (i == *udp_socket)
 	{
-		printf("[main] read on udpsocket...\n");
+		printf("[INFOR][handle_socket_change] read on udpsocket...\n");
 		return;
 	}
 	int dest_id;
@@ -45,7 +48,7 @@ void handle_socket_change(fd_set *master, SOCKET i, SOCKET *udp_socket, SOCKET *
 	int s1ID, s1PORT;
 	char s1IP[16];
 	if ((i == *ltcp_socket) && (sscanf(read, "UPDATE_FROM_LEADER:%15[^:]:%d:%d", s1IP, &s1ID, &s1PORT) == 3)){
-		printf("[main] read on ltcpsocket...\n");
+		printf("[INFOR][handle_socket_change] read on ltcpsocket...\n");
 		
 		char csPORT[6];
 		sprintf(csPORT, "%d", s1PORT);
@@ -73,13 +76,13 @@ void handle_socket_change(fd_set *master, SOCKET i, SOCKET *udp_socket, SOCKET *
 	{
 		handle_client_message(sender_id, dest_id, message, connected_peers, i);
 	} else if (sscanf(read, "ELECTION:%7[^:]:%d", keyword, &pred_id) == 2) {
-		printf("[main] keyword (%s) (%d)\n", read, pred_id);
+		// printf("[INFOR][handle_socket_change] keyword (%s) (%d)\n", read, pred_id);
 		int value = leader_found(read);
 		int ret_value = 0;
 		if (value != 0)
 		{
 			memset(keyword, 0, sizeof(keyword));
-			printf("[main] ELECTION rejected LEADER received\n");
+			// printf("[INFOR][handle_socket_change] ELECTION rejected LEADER received\n");
 			sprintf(keyword, "LEADER");
 			pred_id = value;
 		}
@@ -123,7 +126,7 @@ void handle_socket_change(fd_set *master, SOCKET i, SOCKET *udp_socket, SOCKET *
 		char nlIP[16], sIP[16];
 		if (sscanf(read, "KNOW_NEW_LEADER:%d:%15[^:]:%d:%d:%15[^:]:%d", &nlID, nlIP, &nlPORT, &sID, sIP, &sPORT) == 6){
 			
-			printf("[main] update leader tcp socket: %.*s\n", byte_received, read);
+			printf("[INFOR][handle_socket_change] update leader tcp socket: %.*s\n", byte_received, read);
 			if (connected_peers->next == NULL)
 				append_server(&connected_peers, nlID, (void *)nlIP, nlPORT, 1, i);
 			
@@ -155,7 +158,7 @@ void handle_socket_change(fd_set *master, SOCKET i, SOCKET *udp_socket, SOCKET *
 			*ltcp_socket = i;
 			display_server(connected_peers);
 		} else {
-			printf("[main] read on socket (%d) %s...\n", i, read);
+			printf("[INFOR][handle_socket_change] read on socket (%d) %s...\n", i, read);
 			return;
 		}
 	}

@@ -39,7 +39,7 @@ void udp_broadcast(char *msg, SOCKET udp_sockfd)
 			service_buffer, sizeof(service_buffer),
 			NI_NUMERICHOST | NI_NUMERICSERV);
 	printf("[udp_broadcast] address: %s %s\n", address_buffer, service_buffer);
-	if (sendto(udp_sockfd, msg, strlen(msg), 0, rcv_addr->ai_addr, rcv_addr->ai_addrlen) == -1)
+	if (sendto(udp_sockfd, msg, sizeof(msg), 0, rcv_addr->ai_addr, rcv_addr->ai_addrlen) == -1)
 		fprintf(stderr, "[udp_broadcast] sendto() failed. (%d)\n", GETSOCKETERRNO());
 	free(rcv_addr);
 

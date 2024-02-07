@@ -2,6 +2,8 @@
 
 void handle_disconnection(struct serverInfo * head, SOCKET i, SOCKET udp_socket, SOCKET mc_socket, SOCKET ltcp_socket, SOCKET successor_socket)
 {
+	printf("\n=>=> [INFO][handle_disconnection] \n");
+
 	if (i == udp_socket) {
 		printf("[handle_disconnection] udp_client disconnect...\n");
 	} else if (i == mc_socket) {
@@ -64,8 +66,10 @@ void handle_disconnection(struct serverInfo * head, SOCKET i, SOCKET udp_socket,
 
 int update_ring(struct serverInfo *head, ServerInfo *pred_i, ServerInfo *connected_peers)
 {
+	printf("\n=>=> [INFO][update_ring] \n");
+	
 	char message[1024];
-	printf("[update_ring] updating %d ring...\n", pred_i->ID);
+	printf("\n[update_ring] updating %d ring...\n", pred_i->ID);
 	if (head != NULL)
 		snprintf(message, sizeof(message), "UPDATE_FROM_LEADER:%s:%d:%d\n\n", head->addr, head->ID, head->port);
 	else{
@@ -78,9 +82,9 @@ int update_ring(struct serverInfo *head, ServerInfo *pred_i, ServerInfo *connect
 	memset(sendBuf, 'x', sizeof(sendBuf)-1);
 	sendBuf[(int)sizeof(sendBuf) - 1] = '\0';
 	memcpy(sendBuf, message, strlen(message));
-	printf("[update_ring] sending (%s) to (%d) socket (%d)...\n", sendBuf, pred_i->tcp_socket, pred_i->tcp_socket);
+	printf("[update_ring] sending to (%d) on socket (%d): %s", pred_i->tcp_socket, pred_i->tcp_socket, message);
 
-	if (send(pred_i->tcp_socket, sendBuf, strlen(sendBuf), 0) == -1)
+	if (send(pred_i->tcp_socket, sendBuf, BUFFER_SIZE, 0) == -1)
 	{
 		fprintf(stderr, "[update_ring] send() failed. (%d)\n", GETSOCKETERRNO());
 		return (-1);

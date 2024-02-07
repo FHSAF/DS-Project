@@ -3,6 +3,8 @@
 
 void remove_from_holdback_queue(HoldBackQueue **head, int clk_index)
 {
+    printf("\n=>=>[remove_from_holdback_queue] \n");
+
     if (*head == NULL)
     {
         printf("[remove_from_holdback_queue] Queue is empty.\n");
@@ -33,6 +35,8 @@ void remove_from_holdback_queue(HoldBackQueue **head, int clk_index)
 
 int array_compare(int *arr1, int *arr2)
 {
+    printf("\n=>=>[array_compare] \n");
+
     for (int i = 0; i < MAX_GROUP_SIZE; i++)
     {
         if (arr1[i] != arr2[i])
@@ -46,6 +50,8 @@ int array_compare(int *arr1, int *arr2)
 
 void print_holdback_queue(HoldBackQueue *head)
 {
+    printf("\n=>=>[print_holdback_queue] \n");
+
     HoldBackQueue *current = head;
     while (current != NULL)
     {
@@ -57,6 +63,8 @@ void print_holdback_queue(HoldBackQueue *head)
 
 void append_to_holdback_queue(HoldBackQueue **head, char *clean_message)
 {
+    printf("\n=>=>[append_to_holdback_queue] \n");
+
     char sender_dep_str[MAX_GROUP_SIZE * 5];
     sender_dep_str[MAX_GROUP_SIZE] = '\0';
     char content[BUFFER_SIZE];
@@ -69,7 +77,7 @@ void append_to_holdback_queue(HoldBackQueue **head, char *clean_message)
     HoldBackQueue *newNode = (HoldBackQueue *)malloc(sizeof(HoldBackQueue));
     if (newNode == NULL)
     {
-        printf("[append_to_holdback_queue] malloc() failed.\n");
+        printf("=>=>=> [ERROR][append_to_holdback_queue] malloc() failed.\n");
         return;
     }
     newNode->clk_index = 0;
@@ -92,7 +100,6 @@ void append_to_holdback_queue(HoldBackQueue **head, char *clean_message)
 
     if (*head == NULL)
     {
-        printf("[INFO] Queue is empty.\n");
         *head = newNode;
         return;
     }
@@ -106,6 +113,8 @@ void append_to_holdback_queue(HoldBackQueue **head, char *clean_message)
 
 char * clear_message(char *not_clean_message)
 {
+    printf("\n=>=>[clear_message] \n");
+
     memset(message, 0, BUFFER_SIZE);
     char *end = strstr(not_clean_message, "\n\n");
     if (end == NULL)
@@ -119,6 +128,8 @@ char * clear_message(char *not_clean_message)
 
 void free_holdback_queue(HoldBackQueue *head)
 {
+    printf("\n=>=>[free_holdback_queue] \n");
+
     HoldBackQueue *current = head;
     while (current != NULL)
     {
@@ -130,7 +141,8 @@ void free_holdback_queue(HoldBackQueue *head)
 
 void get_deps_str(int *int_array, int size, char *str_array)
 {
-    
+    printf("\n=>=>[get_deps_str] \n");
+
     for (int i = 0; i < size; i++)
     {
         char buf[12];
@@ -140,8 +152,10 @@ void get_deps_str(int *int_array, int size, char *str_array)
     }
     str_array[strlen(str_array) - 1] = '\0'; // remove the last comma
 }
+
 void get_deps_int(char *str_array, int *int_array)
 {
+    printf("\n=>=>[get_deps_int] \n");
     
     char *token = strtok(str_array, ",");
     for (int i = 0; token != NULL; i++)

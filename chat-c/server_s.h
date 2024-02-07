@@ -46,7 +46,7 @@
 #include <time.h>
 
 //#define PORT "4041"
-#define MAX_CONNECTION 10
+#define MAX_CONNECTION 20
 //#define SERVER_IP "127.0.0.1"
 #define NEXT_SERVER_IP "127.0.0.1"
 #define NEXT_SERVER_PORT "6970"
@@ -62,6 +62,7 @@ extern int client_count;
 extern char PORT[6];
 extern char SERVER_IP[16];
 extern int clk_index;
+
 
 
 typedef struct groupInfo {
@@ -93,6 +94,7 @@ typedef struct ClientInfo {
 	struct ClientInfo *addr;
 } clientInfo;
 
+extern struct ClientInfo ClientArray[MAX_CONNECTION];
 
 void accept_new_client(SOCKET socket_listen, fd_set *master, SOCKET *socket_max);
 void send_server_info(SOCKET dest, ServerInfo *myInfo);
@@ -124,6 +126,11 @@ int leader_found(char *message);
 int handle_client_message(int sender_id, int dest_id, char *message, struct serverInfo *head, SOCKET i);
 void handle_socket_change(fd_set *master, SOCKET i, SOCKET *udp_socket, SOCKET *mc_socket, SOCKET *ltcp_socket, SOCKET *successor_socket, SOCKET *socket_max, ServerInfo *connected_peers);
 int getRadomId(int min, int max);
+int exit_keyword();
+
+SOCKET new_client(ServerInfo * connected_peers, int new_client_tcp_port, struct sockaddr_in sender_addr);
+SOCKET ring_reconstruction(ServerInfo *connected_peers, int new_peer_id, int new_peer_port, struct sockaddr_in sender_addr);
+SOCKET new_server(ServerInfo *connected_peers, int new_peer_id, int new_peer_port, struct sockaddr_in sender_addr);
 
 // Data structure of servers to keep
 int server_info_exist(int id, struct serverInfo *head);

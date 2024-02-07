@@ -3,6 +3,8 @@
 
 int server_info_exist(int id, struct serverInfo *head)
 {
+	printf("\n=>=> [INFO][server_info_exist] \n");
+
 	struct serverInfo * current = head;
 	while (current!= NULL){
 		if (current->ID == id)
@@ -15,6 +17,8 @@ int server_info_exist(int id, struct serverInfo *head)
 
 struct serverInfo * create_server(int id, void *address, int port, int leader, SOCKET tcp_socket)
 {
+	printf("\n=>=> [INFO][create_server] \n");
+
 	struct serverInfo* server_info = (struct serverInfo *)malloc(sizeof(struct serverInfo));
 	if (server_info == NULL)
 	{
@@ -33,6 +37,8 @@ struct serverInfo * create_server(int id, void *address, int port, int leader, S
 
 void append_server(struct serverInfo **head, int id, void *address, int port, int leader, SOCKET tcp_socket)
 {
+	printf("\n=>=> [INFO][append_server] \n");
+
 	if (server_info_exist(id, *head))
 		return;
 	struct serverInfo * new_server = create_server(id, address, port, leader, tcp_socket);
@@ -51,6 +57,8 @@ void append_server(struct serverInfo **head, int id, void *address, int port, in
 
 int delete_server(struct serverInfo *head, int id)
 {
+	printf("\n=>=> [INFO][delete_server] \n");
+
 	struct serverInfo * current = head;
 	struct serverInfo * temp = NULL;
 	while (current != NULL){
@@ -71,6 +79,8 @@ int delete_server(struct serverInfo *head, int id)
 
 void display_server(struct serverInfo *head)
 {
+	printf("\n=>=> [INFO][display_server] \n");
+
 	struct serverInfo *current = head;
 	printf("\n\t==================== Servers I know ====================\n");
 	while (current != NULL)
@@ -83,6 +93,8 @@ void display_server(struct serverInfo *head)
 
 void free_server_storage(struct serverInfo *head)
 {
+	printf("\n=>=> [INFO][free_server_storage] \n");
+
 	struct serverInfo *current = head;
 	struct serverInfo *nextServer;
 	while (current != NULL)
@@ -95,6 +107,8 @@ void free_server_storage(struct serverInfo *head)
 
 void append_server_sorted(struct serverInfo **head, int id, void *address, int port, int leader, SOCKET tcp_socket)
 {
+	printf("\n=>=> [INFO][append_server_sorted] \n");
+
 	if (server_info_exist(id, *head))
 		return;
 	struct serverInfo * new_server = create_server(id, address, port, leader, tcp_socket);
@@ -126,7 +140,10 @@ void append_server_sorted(struct serverInfo **head, int id, void *address, int p
 	display_server(*head);
 }
 
-ServerInfo * ist_peer_server(SOCKET sockfd, struct serverInfo *head) {
+ServerInfo * ist_peer_server(SOCKET sockfd, struct serverInfo *head) 
+{
+	printf("\n=>=> [INFO][ist_peer_server] \n");
+
 	if (head->leader != 1)
 		return (0);
     struct serverInfo *current = head;
@@ -141,6 +158,8 @@ ServerInfo * ist_peer_server(SOCKET sockfd, struct serverInfo *head) {
 
 SOCKET get_pred_socket(int id, struct serverInfo *head)
 {
+	printf("\n=>=> [INFO][get_pred_socket] \n");
+
 	struct serverInfo * current = head;
 	current = current->next;
 	while (current->next != NULL){
@@ -154,6 +173,8 @@ SOCKET get_pred_socket(int id, struct serverInfo *head)
 
 SOCKET get_last_peer_socket(struct serverInfo *head)
 {
+	printf("\n=>=> [INFO][get_last_peer_socket] \n");
+
 	struct serverInfo * current = head;
 	while (current->next != NULL)
 		current = current->next;
@@ -162,6 +183,8 @@ SOCKET get_last_peer_socket(struct serverInfo *head)
 
 ServerInfo * get_successor(int id, struct serverInfo *head)
 {
+	printf("\n=>=> [INFO][get_successor] \n");
+
 	struct serverInfo * current = head;
 	while (current->next != NULL){
 		if (current->next->ID > id)
@@ -174,6 +197,8 @@ ServerInfo * get_successor(int id, struct serverInfo *head)
 
 ServerInfo * get_predecessor(int id, struct serverInfo *head)
 {
+	printf("\n=>=> [INFO][get_predecessor] \n");
+
 	struct serverInfo * current = head;
 	while (current->next != NULL){
 		if (current->next->ID == id)
@@ -186,17 +211,14 @@ ServerInfo * get_predecessor(int id, struct serverInfo *head)
 
 ServerInfo * get_last_server(struct serverInfo *head)
 {
+	printf("\n=>=> [INFO][get_last_server] \n");
+
 	struct serverInfo * current = head;
 	while (current->next != NULL)
 		current = current->next;
 	return (current);
 }
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-// Append a new client to the end of the list
 TcpClient* append_tcp_client(TcpClient* head, SOCKET socket_fd, char* IP, int PORT) {
     TcpClient* newClient = (TcpClient*)malloc(sizeof(TcpClient));
     newClient->socket_fd = socket_fd;

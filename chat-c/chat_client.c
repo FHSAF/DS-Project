@@ -1,10 +1,12 @@
 #include "server_s.h"
 
-struct ClientInfo clients[MAX_CONNECTION];
+struct ClientInfo ClientArray[MAX_CONNECTION] = {0};
 struct ClientInfo *tempClient;
 int randomPort = 8081;
 void assign_client_info(SOCKET socket_client, struct sockaddr_storage client_address)
 {
+	printf("\n=>=> [INFO][assign_client_info] \n");
+
 	socklen_t addr_len = sizeof(client_address);
 	char client_ip[NI_MAXHOST];
 
@@ -35,12 +37,13 @@ void assign_client_info(SOCKET socket_client, struct sockaddr_storage client_add
 	client_info->addr = client_info;
 	memcpy(client_info->ip_addr, client_ip, sizeof(client_info->ip_addr));
 
-	clients[client_count] = *client_info;
+	ClientArray[client_count] = *client_info;
 	client_count++;
 }
 
 int handle_client_message(int sender_id, int dest_id, char *message, struct serverInfo *head, SOCKET i)
 {
+	printf("\n=>=> [INFO][handle_client_message] \n");
 	
 	printf("[handle_client_message] Sender (%d), Dest (%d), Message (%s)\n", sender_id, dest_id, message);
 	if ((strcmp(message, "GET_INDEX") == 0))
@@ -51,10 +54,10 @@ int handle_client_message(int sender_id, int dest_id, char *message, struct serv
 		// int client_id = getRadomId(1000, 10000)*(client_count);
 		for (int ci = 0; ci < client_count; ++ci)
 		{
-			if (clients[ci].socket == i)
+			if (ClientArray[ci].socket == i)
 			{
-				clients[ci].id = sender_id;
-				printf("[handle_client_msg] Client(%d) id is (%d).\n",client_count, clients[ci].id);
+				ClientArray[ci].id = sender_id;
+				printf("[handle_client_msg] Client(%d) id is (%d).\n",client_count, ClientArray[ci].id);
 			}
 		}
 		
@@ -64,7 +67,7 @@ int handle_client_message(int sender_id, int dest_id, char *message, struct serv
 		memset(sendBuf, 'x', sizeof(sendBuf)-1);
 		sendBuf[sizeof(sendBuf) - 1] = '\0';
 		memcpy(sendBuf, msg, strlen(msg));
-		if (send(i, sendBuf, strlen(sendBuf), 0) < 1)
+		if (send(i, sendBuf, BUFFER_SIZE, 0) < 1)
 		{
 			printf("[handle_client_msg] Sending ID failed.\n");
 			CLOSESOCKET(i);
@@ -77,9 +80,9 @@ int handle_client_message(int sender_id, int dest_id, char *message, struct serv
 	struct ClientInfo *dest_client = NULL;
 	for (int ci = 0; ci < client_count; ++ci)
 	{
-		if (clients[ci].id == dest_id)
+		if (ClientArray[ci].id == dest_id)
 		{
-			dest_client = &clients[ci];
+			dest_client = &ClientArray[ci];
 			printf("[handle_client_message] Destination found localy(%d).\n",dest_id);
 			break;
 		}
@@ -88,7 +91,7 @@ int handle_client_message(int sender_id, int dest_id, char *message, struct serv
 	if (dest_client != NULL)
 	{
 		sprintf(sendBuf, "[SENDER]: %d\n\t[MESSAGE]: %s\n\n", sender_id, message);
-		int bytes_sent = send(dest_client->socket, sendBuf, strlen(sendBuf), 0);
+		int bytes_sent = send(dest_client->socket, sendBuf, BUFFER_SIZE, 0);
 		printf("[handle_client_message] Sent %d bytes to (%d)\n", bytes_sent, dest_client->id);
 	} else {
 		printf("[handle_client_message] Client not found (%d).\n", dest_id);
@@ -100,10 +103,10 @@ int handle_client_message(int sender_id, int dest_id, char *message, struct serv
 		sprintf(sendBuf, "[SENDER]: %d\n\t[GROUP]: %d\n\t[MESSAGE]: %s\n\n",sender_id, GROUP_ID, message);
 		for (int ci = 0; ci < client_count; ++ci)
 		{
-			if (clients[ci].id != sender_id)
+			if (ClientArray[ci].id != sender_id)
 			{
-				int bytes_sent = send(clients[ci].socket, sendBuf, strlen(sendBuf), 0);
-				printf("[handle_client_message] Sent %d bytes to (%d)\n", bytes_sent, clients[ci].id);
+				int bytes_sent = send(ClientArray[ci].socket, sendBuf, BUFFER_SIZE, 0);
+				printf("[handle_client_message] Sent %d bytes to (%d)\n", bytes_sent, ClientArray[ci].id);
 			}
 		}
 		return (1);
@@ -125,10 +128,10 @@ int message_to_group(SOCKET sender_socket, int group_id, char *msg, struct serve
 		snprintf(sendBuf, sizeof(sendBuf), "%d:%s\n", sender_id, msg);
 		for (int ci = 0; ci < client_count; ++ci)
 		{
-			if (clients[ci].id != sender_id)
+			if (ClientArray[ci].id != sender_id)
 			{
-				int bytes_sent = send(clients[ci].socket, sendBuf, strlen(sendBuf), 0);
-				printf("[message_to_group] Sent %d bytes to (%d)\n", bytes_sent, clients[ci].id);
+				int bytes_sent = send(ClientArray[ci].socket, sendBuf, BUFFER_SIZE, 0);
+				printf("[message_to_group] Sent %d bytes to (%d)\n", bytes_sent, ClientArray[ci].id);
 			}
 		}
 		return (1);
@@ -144,10 +147,12 @@ int message_to_group(SOCKET sender_socket, int group_id, char *msg, struct serve
 
 int get_client_id(SOCKET socket)
 {
+	printf("\n=>=> [INFO][get_client_id] \n");
+
 	for (int ci = 0; ci < client_count; ++ci)
 	{
-		if (clients[ci].socket == socket)
-			return (clients[ci].id);
+		if (ClientArray[ci].socket == socket)
+			return (ClientArray[ci].id);
 	}
 	return (-1);
 }
@@ -156,16 +161,22 @@ int get_client_id(SOCKET socket)
 
 void remove_client_from_list(SOCKET sockfd)
 {
+	printf("\n=>=> [INFO][remove_client_from_list] \n");
+
 	for (int ci = 0; ci < client_count; ++ci)
 	{
-		if (clients[ci].socket == sockfd)
+		if (ClientArray[ci].socket == sockfd)
 		{
-			printf("Client with ID:(%d) disconnected.\n", clients[ci].id);
-			free(clients[ci].addr);
-			// printf("freed %p \n", clients[ci].addr);
+			if (ClientArray[ci].id != 0)
+				printf("[INFO][remove_client_from_list] Chat client with ID:(%d) disconnected.\n", ClientArray[ci].id);
+			else
+				printf("[INFO][remove_client_from_list] Peer IP:(%s) disconnected.\n", ClientArray[ci].ip_addr);
+
+			free(ClientArray[ci].addr);
+			// printf("freed %p \n", ClientArray[ci].addr);
 			for (int cj = ci; cj < client_count - 1; ++cj)
 			{
-				clients[cj] = clients[cj + 1];
+				ClientArray[cj] = ClientArray[cj + 1];
 			}
 			client_count--;
 			break;

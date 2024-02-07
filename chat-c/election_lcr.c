@@ -4,8 +4,11 @@ int participant = 0;
 
 int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers, SOCKET i)
 {
+	printf("\n=>=> [INFO][lcr_election] \n");
+
 	char message[1024];
 	memset(message, 0, sizeof(message));
+	int bytes_sent = 0;
 	
 	if (strcmp(keyword, "VOTE") == 0)
 	{
@@ -13,8 +16,8 @@ int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers,
 		{
 			if (connected_peers->next == NULL)
 				return (0);
-			participant = 1;
-			printf("[lcr_election] ID (%d) is greater than my ID (%d).\n", pred_id, connected_peers->ID);
+			// participant = 1;
+			printf("[INFO][lcr_election] ID (%d) is greater than my ID (%d).\n", pred_id, connected_peers->ID);
 			
 			sprintf(message, "ELECTION:VOTE:%d\n\n", pred_id);
 
@@ -22,20 +25,25 @@ int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers,
 			sendBuf[sizeof(sendBuf) - 1] = '\0';
 			memcpy(sendBuf, message, strlen(message));
 
-			if (send(connected_peers->next->next->tcp_socket, sendBuf, strlen(sendBuf), 0) == -1)
+			printf("==> [PROGRESS][lcr_election] sending (%lu Bytes) to (%d)...\n", strlen(message), connected_peers->next->next->ID);
+			if ((bytes_sent = send(connected_peers->next->next->tcp_socket, sendBuf, BUFFER_SIZE, 0)) == -1)
 			{
 				fprintf(stderr, "[lcr_election] send() failed. (%d)\n", GETSOCKETERRNO());
 				return (-1);
 			}
-			printf("[send_ele_msg] sent (%lu) bytes (%s) to (%d) socket (%d)\n", strlen(sendBuf), 
-					message, connected_peers->next->next->ID, connected_peers->next->next->tcp_socket);
+			printf("==> [PROGRESS][lcr_election] sent (%d Bytes) %s", bytes_sent, message);
 					
 		} else if(pred_id < connected_peers->ID){
 			if (connected_peers->next == NULL)
 				return (0);
+			if (participant == 1)
+			{
+				printf("[INFO][lcr_election] Participated ID (%d) is less than my ID (%d).\n", pred_id, connected_peers->ID);
+				return (0);
+			}
 			participant = 1;
 			
-			printf("[lcr_election] ID (%d) is less than my ID (%d).\n", pred_id, connected_peers->ID);
+			printf("[INFO][lcr_election] ID (%d) is less than my ID (%d).\n", pred_id, connected_peers->ID);
 			
 			sprintf(message, "ELECTION:VOTE:%d\n\n", connected_peers->ID);
 
@@ -43,13 +51,13 @@ int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers,
 			sendBuf[sizeof(sendBuf) - 1] = '\0';
 			memcpy(sendBuf, message, strlen(message));
 
-			if (send(connected_peers->next->next->tcp_socket, sendBuf, strlen(sendBuf), 0) == -1)
+			printf("==> [PROGRESS][lcr_election] sending (%lu Bytes) to (%d)...\n", strlen(message), connected_peers->next->next->ID);
+			if ((bytes_sent = send(connected_peers->next->next->tcp_socket, sendBuf, BUFFER_SIZE, 0)) == -1)
 			{
 				fprintf(stderr, "[lcr_election] send() failed. (%d)\n", GETSOCKETERRNO());
 				return (-1);
 			}
-			printf("[send_ele_msg] sent (%lu) bytes (%s) to (%d) socket (%d)\n", strlen(sendBuf), 
-					message, connected_peers->next->next->ID, connected_peers->next->next->tcp_socket);
+			printf("==> [PROGRESS][lcr_election] sent (%d Bytes) %s", bytes_sent, message);
 
 		} else if(connected_peers->ID == pred_id) {
 			// I receive my message ELECTION:ID back so I'm the leader
@@ -64,14 +72,14 @@ int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers,
 			memset(sendBuf, 'x', sizeof(sendBuf)-1);
 			sendBuf[sizeof(sendBuf) - 1] = '\0';
 			memcpy(sendBuf, message, strlen(message));
-			
-			if (send(connected_peers->next->next->tcp_socket, sendBuf, strlen(sendBuf), 0) == -1)
+
+			printf("==> [PROGRESS][lcr_election] sending (%lu Bytes) to (%d)...\n", strlen(message), connected_peers->next->next->ID);
+			if ((bytes_sent = send(connected_peers->next->next->tcp_socket, sendBuf, BUFFER_SIZE, 0)) == -1)
 			{
 				fprintf(stderr, "[lcr_election] send() failed. (%d)\n", GETSOCKETERRNO());
 				return (-1);
 			}
-			printf("[send_ele_msg] sent (%lu) bytes (%s) to (%d) socket (%d)\n", strlen(sendBuf), 
-					message, connected_peers->next->next->ID, connected_peers->next->next->tcp_socket);
+			printf("==> [PROGRESS][lcr_election] sent (%d Bytes) %s", bytes_sent, message);
 
 			delete_server(connected_peers, connected_peers->next->ID);
 
@@ -82,11 +90,11 @@ int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers,
 		if (pred_id == connected_peers->ID)
 		{
 			participant = 0;
-			printf("[lcr_election] I'm leader (%d)", i);
+			printf("[INFO][lcr_election] I'm leader (%d)\n.", i);
 		} else {
 			if (connected_peers->next == NULL)
 				return (0);
-			printf("[lcr_election] Leader found (%d).\n", pred_id);
+			printf("[INFO][lcr_election] Leader found (%d).\n", pred_id);
 			participant = 0;
 			connected_peers->next->ID = pred_id;
 			connected_peers->next->leader = 1;
@@ -96,11 +104,13 @@ int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers,
 			sendBuf[sizeof(sendBuf) - 1] = '\0';
 			memcpy(sendBuf, message, strlen(message));
 
-			if (send(connected_peers->next->next->tcp_socket, sendBuf, strlen(sendBuf), 0) == -1)
+			printf("==> [PROGRESS][lcr_election] sending (%lu Bytes) to (%d)...\n", strlen(message), connected_peers->next->next->ID);
+			if ((bytes_sent = send(connected_peers->next->next->tcp_socket, sendBuf, BUFFER_SIZE, 0)) == -1)
 			{
 				fprintf(stderr, "[lcr_election] send() failed. (%d)\n", GETSOCKETERRNO());
 				return (0);
 			}
+			printf("==> [PROGRESS][lcr_election] sent (%d Bytes) %s", bytes_sent, message);
 			return (1);
 		}
 	}
@@ -110,7 +120,12 @@ int lcr_election(char *keyword, int pred_id, struct serverInfo *connected_peers,
 
 void send_ele_msg(struct serverInfo *head)
 {
-	char message[1024];
+	printf("\n=>=> [INFO][send_ele_msg] \n");
+
+	sleep(3);
+	
+	int bytes_sent = 0;
+	char message[BUFFER_SIZE-3];
 	if (head->next->next == NULL)
 	{
 		printf("[send_ele_msg] No successor found I'm the leader.\n");
@@ -125,19 +140,21 @@ void send_ele_msg(struct serverInfo *head)
 	sendBuf[sizeof(sendBuf) - 1] = '\0';
 	memcpy(sendBuf, message, strlen(message));
 	
-	if (send(head->next->next->tcp_socket, sendBuf, strlen(sendBuf), 0) == -1)
+	printf("==> [PROGRESS][send_ele_msg] sending (%lu Bytes) to (%d)...\n", strlen(message), head->next->next->ID);
+	if ((bytes_sent = send(head->next->next->tcp_socket, sendBuf, BUFFER_SIZE, 0)) == -1)
 	{
 		fprintf(stderr, "[send_ele_msg] send() failed. (%d)\n", GETSOCKETERRNO());
 		return;
 	}
-	printf("[send_ele_msg] sent (%lu) bytes (%s) to (%d) socket (%d)\n", strlen(sendBuf), 
-			message, head->next->next->ID, head->next->next->tcp_socket);
-
+	participant = 1;
+	printf("==> [PROGRESS][send_ele_msg] sent (%d Bytes) %s", bytes_sent, message);
 }
 
 
 int leader_found(char *message)
 {
+	// printf("\n=>=> [INFO][leader_found] \n");
+
 	char *found = strstr(message, "LEADER:");
 	int value = 0;
 
@@ -145,13 +162,11 @@ int leader_found(char *message)
 		char *endptr;
 		value = strtol(found + strlen("LEADER:"), &endptr, 10);
 		if (endptr != found + strlen("LEADER:")) {
-			printf("[leader_found] Found LEADER with ID %d\n", value);
+			// printf("[leader_found] Found LEADER with ID %d\n", value);
 			return (value);
 		} else {
 			printf("[leader_found] No integer found after LEADER:\n");
 		}
-	} else {
-		printf("[leader_found] LEADER: not found\n");
-	}
+	} 
 	return (value);
 }
