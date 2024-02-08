@@ -30,6 +30,7 @@ struct serverInfo * create_server(int id, void *address, int port, int leader, S
 	server_info->port = port;
 	server_info->leader = leader;
 	server_info->tcp_socket = tcp_socket;
+	time(&(server_info->last_heartbeat));
 	server_info->next = NULL;
 	
 	return (server_info);
@@ -280,4 +281,24 @@ void display(TcpClient* head) {
         printf("Socket FD: %d, IP: %s, Port: %d\n", current->socket_fd, current->IP, current->PORT);
         current = current->next;
     }
+}
+
+void update_heartbeat_timeout(struct serverInfo *head, int id)
+{
+	// printf("\n=>=> [INFO][update_heartbeat_timeout] \n");
+	struct serverInfo * current = head;
+	while (current != NULL){
+		if (current->ID == id)
+		{
+			time_t now;
+			time(&now);
+			fflush(stdout);
+			printf("\r[INFO][update_heartbeat_timeout] Server %d is alive since HB(%f).", current->ID, difftime(now, current->last_heartbeat));
+			fflush(stdout);
+			time(&(current->last_heartbeat));
+			break;
+		}
+		else
+			current = current->next;
+	}
 }

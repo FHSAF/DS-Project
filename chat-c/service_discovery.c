@@ -10,17 +10,12 @@ SOCKET service_discovery(SOCKET *mc_socket, SOCKET *successor_socket, SOCKET tcp
 
     SOCKET socket_max = tcp_socket;
 
-	char message[BUFFER_SIZE]; 
-	memset(message, 0, sizeof(message));
-    
-    sprintf(message, "LEADER_DISCOVERY:%d:%d\n\n", head->ID, head->port);
 	SOCKET socket_client;
 	char address_buffer[100];
 	char service_buffer[100];
 
-	memset(sendBuf, 'x', sizeof(sendBuf)-1);
-	sendBuf[sizeof(sendBuf) - 1] = '\0'; // 256th byte is null terminator
-	memcpy(sendBuf, message, strlen(message));
+	memset(sendBuf, 0, sizeof(sendBuf));
+	sprintf(sendBuf, "LEADER_DISCOVERY:%d:%d\n\n", head->ID, head->port);
 
 	printf("\t[service_discovery] broadcasting (%lu) bytes, attempt(%d)...\n", strlen(sendBuf), 1);
 	if (!ISVALIDSOCKET(do_multicast(mc_socket, MULTICAST_IP, sendBuf)))

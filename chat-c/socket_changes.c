@@ -2,7 +2,7 @@
 
 void handle_socket_change(fd_set *master, SOCKET i, SOCKET *udp_socket, SOCKET *mc_socket, SOCKET *ltcp_socket, SOCKET *successor_socket, SOCKET *socket_max, ServerInfo *connected_peers)
 {
-	printf("\n=>=> [INFO][handle_socket_change] \n");
+	// printf("\n=>=> [INFO][handle_socket_change] \n");
 
 	char readBuf[BUFFER_SIZE];
 	memset(readBuf, 0, sizeof(readBuf));
@@ -29,7 +29,9 @@ void handle_socket_change(fd_set *master, SOCKET i, SOCKET *udp_socket, SOCKET *
 		return;
 	}
 	memcpy(read, readBuf, end - readBuf);
-	printf("[INFOR][handle_socket_change] message recieved read(%lu) bytes: (%s)\n", strlen(readBuf), read);
+	fflush(stdout);
+	// printf("\r[INFOR][handle_socket_change] bytes_received(%d) read(%lu) bytes: (%s)", byte_received, strlen(readBuf), read);
+	fflush(stdout);
 
 	if (i == *udp_socket)
 	{
@@ -157,11 +159,12 @@ void handle_socket_change(fd_set *master, SOCKET i, SOCKET *udp_socket, SOCKET *
 			//remove_client_from_list(i);
 			*ltcp_socket = i;
 			display_server(connected_peers);
+		} else if (sscanf(read, "HEARTBEAT:%d", &sender_id) == 1) {
+			update_heartbeat_timeout(connected_peers, sender_id);
 		} else {
-			printf("[INFOR][handle_socket_change] read on socket (%d) %s...\n", i, read);
-			return;
+			printf("[INFO][handle_socket_change] read on socket (%d) %s...\n", i, read);
 		}
 	}
 
-	printf("[socket_chages] end.\n");
+	// printf("[socket_chages] end.\n");
 }

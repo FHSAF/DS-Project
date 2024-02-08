@@ -123,21 +123,35 @@ int main(int argc, char *argv[])
 		}
 
         time(&end_t);
-		
-		// sprintf(sendBuf, "%d\n\n", connected_peers->ID);
-        // if ((int)difftime(end_t, start_t) == 10)
-        // {
-		// 	FD_CLR(mc_socket, &master);
-		// 	if (connected_peers->leader == 1)
-		// 		do_multicast(&mc_socket, MULTICAST_IP, msg1);
-		// 	else
-        //     	do_multicast(&mc_socket, MULTICAST_IP, msg1);
-		// 	if (mc_socket > socket_max)
-		// 		socket_max = mc_socket;
-		// 	FD_SET(mc_socket, &master);
-        //     printf("%d \n", (int)difftime(end_t, start_t));
-        //     time(&start_t);
-        // }
+		int bytes_sent = 0;
+		memset(sendBuf, 0, sizeof(sendBuf));
+		sprintf(sendBuf, "HEARTBEAT:%d\n\n", connected_peers->ID);
+        if ((int)difftime(end_t, start_t) >= HEARTBEAT_TIMEOUT)
+        {
+			if (connected_peers->leader == 1){
+				if (connected_peers->next != NULL){
+					do_multicast(&mc_socket, MULTICAST_IP, sendBuf);
+					check_heartbeat_timeout(connected_peers, 2*HEARTBEAT_TIMEOUT);
+				}
+			}else{
+				ServerInfo * current = connected_peers->next;
+				while (current != NULL) {
+					bytes_sent = send(current->tcp_socket, sendBuf, sizeof(sendBuf), 0);
+					if (bytes_sent < 0) {
+						printf("[ERROR][main] send() failed.\n");
+						current = current->next;
+					} else {
+						fflush(stdout);
+						printf("\r[INFO][main] Heartbeat sent(%d bytes) to (%d).", bytes_sent, current->ID);
+						fflush(stdout);
+						current = current->next;
+					}
+					check_leader_timeout(connected_peers, 2*HEARTBEAT_TIMEOUT);
+				}
+			}
+            time(&start_t);
+        }
+
 		#if defined(_WIN32)
 			if kb_hit() {
 		#else

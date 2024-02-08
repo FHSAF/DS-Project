@@ -13,54 +13,94 @@ void handle_disconnection(struct serverInfo * head, SOCKET i, SOCKET udp_socket,
 		printf("[handle_disconnection] Leader election required...\n");
 		// head->leader = 1;
 		// delete_server(head, head->next->ID);
-		send_ele_msg(head);
+		// send_ele_msg(head);
+		return;
 	} else if ((i == successor_socket) && (head->leader != 1)) {
 		printf("[handle_disconnection] successor disconnected...\n");
 		delete_server(head, head->next->next->ID);
 	} else if(ist_peer_server(i, head) != NULL) {
-
-		ServerInfo *pred_i = ist_peer_server(i, head);
-		if (pred_i == head){
-			printf("[handle_disconnection] first element.\n");
-			printf("[handle_disconnection] Peer (%d) disconnected...\n", pred_i->next->ID);
-			pred_i = get_last_server(head);
-			delete_server(head, head->next->ID);
-			if (head->next == NULL)
-			{
-				printf("[handle_disconnection] No peer left.\n");
-				return;
-			}
-			if (head->next->next == NULL)
-			{
-				printf("[handle_disconnection] One peer left.\n");
-				return;
-			}
-			if (update_ring(head->next, pred_i, head)==-1) {
-				printf("[handle_disconnection] update_ring() failed.\n");
-				exit(1);
-			}
-		} else {
-			delete_server(head, pred_i->next->ID);
-			if (head->next == NULL)
-			{
-				printf("[handle_disconnection] No peer left.\n");
-				return;
-			}
-			if (head->next->next == NULL)
-			{
-				printf("[handle_disconnection] One peer left.\n");
-				return;
-			}
-			if (update_ring(NULL, pred_i, head)==-1) {
-				printf("[handle_disconnection] update_ring() failed.\n");
-				exit(1);
-			}
-		}
-		
+		return;
+		// ring_status(i, head);
 	} else {
 		printf("[handle_disconnection] Client (%d) disconnected...\n", i);
 		
 		remove_client_from_list(i);
+	}
+}
+
+void check_heartbeat_timeout(struct serverInfo *head, int timeout)
+{
+	// printf("\n=>=> [INFO][check_heartbeat_timeout] \n");
+
+	struct serverInfo * current = head->next;
+	time_t now;
+	time(&now);
+	while (current != NULL){
+		if (difftime(now, current->last_heartbeat) >= timeout)
+		{
+			printf("[INFO] No HB since(%f) Server %d is dead\n", difftime(now, current->last_heartbeat), current->ID);
+			SOCKET sock_i = current->tcp_socket;
+			current = current->next;
+			ring_status(sock_i, head);
+		}
+		else if (current != NULL)
+			current = current->next;
+	}
+}
+
+void check_leader_timeout(struct serverInfo *head, int timeout)
+{
+	// printf("\n=>=> [INFO][chekc_leader_timeout] \n");
+
+	time_t now;
+	time(&now);
+	if (difftime(now, head->next->last_heartbeat) >= timeout)
+	{
+		printf("[INFO] No HB since(%f) Leader %d is dead\n", difftime(now, head->next->last_heartbeat), head->next->ID);
+		// head->leader = 1;
+		// delete_server(head, head->next->ID);
+		send_ele_msg(head);
+	}
+}
+
+void ring_status(SOCKET i, ServerInfo * head)
+{
+	ServerInfo *pred_i = ist_peer_server(i, head);
+	if (pred_i == head){
+		printf("[handle_disconnection] first element.\n");
+		printf("[handle_disconnection] Peer (%d) disconnected...\n", pred_i->next->ID);
+		pred_i = get_last_server(head);
+		delete_server(head, head->next->ID);
+		if (head->next == NULL)
+		{
+			printf("[handle_disconnection] No peer left.\n");
+			return;
+		}
+		if (head->next->next == NULL)
+		{
+			printf("[handle_disconnection] One peer left.\n");
+			return;
+		}
+		if (update_ring(head->next, pred_i, head)==-1) {
+			printf("[handle_disconnection] update_ring() failed.\n");
+			exit(1);
+		}
+	} else {
+		delete_server(head, pred_i->next->ID);
+		if (head->next == NULL)
+		{
+			printf("[handle_disconnection] No peer left.\n");
+			return;
+		}
+		if (head->next->next == NULL)
+		{
+			printf("[handle_disconnection] One peer left.\n");
+			return;
+		}
+		if (update_ring(NULL, pred_i, head)==-1) {
+			printf("[handle_disconnection] update_ring() failed.\n");
+			exit(1);
+		}
 	}
 }
 

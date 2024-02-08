@@ -53,7 +53,7 @@ SOCKET join_multicast(char *multicast_ip, char * mPORT)
 
 SOCKET do_multicast(SOCKET *mc_socket, char *multicast_ip, char * msg) 
 {
-	printf("\n=>=> [INFO][do_multicast]\n");
+	// printf("\n=>=> [INFO][do_multicast]\n");
 
     struct addrinfo hints, *res;
     int status;
@@ -68,7 +68,7 @@ SOCKET do_multicast(SOCKET *mc_socket, char *multicast_ip, char * msg)
         fprintf(stderr, "[do_multicast] getaddrinfo: %s\n", gai_strerror(status));
         return (error_return);
     }
-	printf("==> [PROGRESS][do_multicast] sending (%lu bytes) to (%s:%s)...\n", strlen(msg), multicast_ip, MULTICAST_PORT);
+	
     if ((bytes_sent = sendto(*mc_socket, msg, BUFFER_SIZE, 0, res->ai_addr, res->ai_addrlen)) == -1) {
         fprintf(stderr, "[do_multicast] sendto failed: %s\n", strerror(errno));
 		return (error_return);
@@ -85,10 +85,8 @@ SOCKET do_multicast(SOCKET *mc_socket, char *multicast_ip, char * msg)
     memcpy(message, msg, end - msg);
 	// Clear the message
 
-	printf("==> [PROGRESS][do_multicast] sent (%d bytes) %s", bytes_sent, message);
+	// printf("==> [PROGRESS][do_multicast] sent (%d bytes) %s", bytes_sent, message);
 
-	CLOSESOCKET(*mc_socket);
-	*mc_socket = join_multicast(multicast_ip, MULTICAST_PORT);
     freeaddrinfo(res); // free the linked list
     return 0;
 }
@@ -124,7 +122,7 @@ SOCKET handle_mcast_receive(SOCKET mc_socket, struct serverInfo * connected_peer
 	}
 	memcpy(buf, readBuf, end - readBuf);
 
-	printf("[handle_mcast_receive] Received (%d) bytes: (%s).\n", bytes_received, buf);
+	// printf("[handle_mcast_receive] Received (%d) bytes: (%s).\n", bytes_received, buf);
 
     int received_id;
 	if (connected_peers->leader == 1)
@@ -136,10 +134,14 @@ SOCKET handle_mcast_receive(SOCKET mc_socket, struct serverInfo * connected_peer
 			return error_return;}
 		
 		return (peer_socket);
-	} else if (sscanf(buf, "%d", &received_id) == 1) {
-        int leaderId = connected_peers->next->ID; // Get the next peer
+	} else if (sscanf(buf, "HEARTBEAT:%d", &received_id) == 1) {
+        int leaderId = connected_peers->next->ID;
+
 		if (received_id == leaderId) {
-			printf("[handle_mcast_receive] Leader <Ok> ID: %d\n", received_id);
+			time_t now;
+			time(&now);
+			printf("[INFO] Leader (%d) since last_heartbeat(%f).\n", received_id, difftime(now, connected_peers->next->last_heartbeat));
+			time(&(connected_peers->next->last_heartbeat));
 			return error_return;
 		} else if (connected_peers->next->next != NULL) {
 			if (connected_peers->next->next->ID == received_id) {

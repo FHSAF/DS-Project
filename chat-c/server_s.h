@@ -55,6 +55,8 @@
 #define MULTICAST_IP "239.255.255.250"
 #define MULTICAST_PORT "12345"
 #define BUFFER_SIZE 256
+#define FAILURE_DETECTION_PORT "6969"
+#define HEARTBEAT_TIMEOUT 4
 
 extern char sendBuf[BUFFER_SIZE];
 extern int GROUP_ID;
@@ -78,6 +80,7 @@ typedef struct serverInfo {
     int port;
 	int leader;
 	SOCKET tcp_socket;
+	time_t last_heartbeat;
 	struct serverInfo *next;
 } ServerInfo;
 
@@ -139,8 +142,15 @@ int delete_server(struct serverInfo *head, int id);
 void append_server(struct serverInfo **head, int id, void *address, int port, int leader, SOCKET tcp_socket);
 void display_server(struct serverInfo *head);
 void free_server_storage(struct serverInfo *head);
+void ring_status(SOCKET i, ServerInfo * head);
+
 ServerInfo * ist_peer_server(SOCKET sockfd, struct serverInfo *head);
 ServerInfo * get_predecessor(int id, struct serverInfo *head);
 ServerInfo * get_last_server(struct serverInfo *head);
+
+// heartbeat
+void update_heartbeat_timeout(struct serverInfo *head, int id);
+void check_heartbeat_timeout(struct serverInfo *head, int timeout);
+void check_leader_timeout(struct serverInfo *head, int timeout);
 
 #endif 
