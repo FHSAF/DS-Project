@@ -22,10 +22,10 @@ You can start one or more server instances by running the `server.sh` script wit
 ```bash
 ./server.sh <# of instances>
 ```
-Replace <# of instances> with the number of server instances you want to start.
+Replace `<# of instances>` with the number of server instances you want to start.
 ### 3. Run Server Instances
 Similarly, you can start one or more client instances by running the `client.sh` script with the number of instances as an argument:
 ```bash
 ./client.sh <# of instances>
 ```
-In this README file, each step is clearly explained with the corresponding bash command provided in a code block for clarity. The placeholders `<# of instances>` are used to indicate where the user should specify the number of instances they want to start for the server and client.
+Note: `<# of instances>` starts from 0.
